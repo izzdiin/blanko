@@ -1,0 +1,11 @@
+services:
+  blanko:
+    build: .
+    container_name: blanko
+    volumes:
+      - /usr/local/app/blanko/html:/var/www/html
+      - /usr/local/app/blanko/config.php:/var/www/config.php
+      - /usr/local/app/blanko/data:/var/www/data
+    restart: always
+    ports:
+      - "1000:80"
