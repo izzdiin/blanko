@@ -1,19 +1,45 @@
 <?php
+// --- Load .env (tanpa dependensi eksternal) ---
+function loadEnv($path) {
+    if (!file_exists($path)) return;
+    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || $line[0] === '#') continue;
+        $pos = strpos($line, '=');
+        if ($pos === false) continue;
+        $key = trim(substr($line, 0, $pos));
+        $val = trim(substr($line, $pos + 1));
+        // hapus quote pembungkus
+        if (strlen($val) >= 2 && (($val[0] === '"' && substr($val, -1) === '"') || ($val[0] === "'" && substr($val, -1) === "'"))) {
+            $val = substr($val, 1, -1);
+        }
+        if (getenv($key) === false) putenv("$key=$val");
+        $_ENV[$key] = $val;
+    }
+}
+loadEnv(__DIR__ . '/.env');
+
+function env($key, $default = '') {
+    $v = getenv($key);
+    return $v === false ? $default : $v;
+}
+
 // --- Konfigurasi Database (SQLite via PDO) ---
 // File database di host: /usr/local/app/blanko/data/blanko.sqlite
 // Di-mount ke container sebagai: /var/www/data/blanko.sqlite
-define('DB_PATH', '/var/www/data/blanko.sqlite');
+define('DB_PATH', env('DB_PATH', '/var/www/data/blanko.sqlite'));
 
 // --- Konfigurasi SMTP ---
-define('SMTP_HOST', 'email.com');
-define('SMTP_USER', 'noreply@email.com');
-define('SMTP_PASS', 'passSMTP');
-define('SMTP_PORT', 465);
-define('SMTP_SECURE', 'ssl');
+define('SMTP_HOST', env('SMTP_HOST', 'email.com'));
+define('SMTP_USER', env('SMTP_USER', 'noreply@email.com'));
+define('SMTP_PASS', env('SMTP_PASS', ''));
+define('SMTP_PORT', (int)env('SMTP_PORT', '465'));
+define('SMTP_SECURE', env('SMTP_SECURE', 'ssl'));
 
 // --- Konfigurasi WhatsApp Gateway ---
-define('WA_BASE_URL', 'https://wa.demo.my.id');
-define('WA_DEVICE_ID', 'iqra');
+define('WA_BASE_URL', env('WA_BASE_URL', 'https://wa.demo.my.id'));
+define('WA_DEVICE_ID', env('WA_DEVICE_ID', 'iqra'));
 
 function getWaHeaders()
 {
