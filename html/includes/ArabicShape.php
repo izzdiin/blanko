@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 function arabic_shape(string $text): string {
+    // buang harakat/tanda baca (combining marks) agar penyambungan huruf tidak terputus
+    $text = preg_replace('/[\x{064B}-\x{0652}\x{0670}\x{06D6}-\x{06ED}]/u', '', $text);
     // Peta: huruf => [isolated, final, initial, medial] (presentation forms)
     $map = [
         'ا' => ["\u{FE8D}", "\u{FE8E}", "\u{FE8D}", "\u{FE8E}"],
