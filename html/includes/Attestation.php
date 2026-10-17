@@ -8,7 +8,7 @@ const STRIP_H = 380;
 
 function blanko_fonts(): array {
     $d = '/var/www/data/fonts/';
-    return [$d . 'DejaVuSans.ttf', $d . 'DejaVuSans-Bold.ttf'];
+    return [$d . 'Arial.ttf', $d . 'Arial-Bold.ttf'];
 }
 
 function blanko_wrap(string $text, string $font, int $size, int $maxw): array {
@@ -123,8 +123,10 @@ function blanko_strip(array $p, array $d, string $stampImg, array $cfg = []): st
         $isArabic = (bool)preg_match('/[\x{0600}-\x{06FF}]/u', $f_text);
         $fontF = $font;
         if ($isArabic) {
+            $arialAr = '/var/www/data/fonts/Arial.ttf';
             $amiri = '/var/www/data/fonts/Amiri-Regular.ttf';
-            if (file_exists($amiri)) $fontF = $amiri;
+            if (file_exists($arialAr)) $fontF = $arialAr;
+            elseif (file_exists($amiri)) $fontF = $amiri;
         }
         foreach (blanko_wrap($f_text, $fontF, $szF, $cw_ar) as $ln) {
             // selalu shaping jika teks Arab agar huruf tersambung
@@ -184,8 +186,9 @@ function blanko_strip(array $p, array $d, string $stampImg, array $cfg = []): st
         $arName = $p['ar_name'] ?? '';
         if ($arName !== '') {
             $shaped = arabic_shape($arName);
+            $arialArB = '/var/www/data/fonts/Arial-Bold.ttf';
             $amiriB = '/var/www/data/fonts/Amiri-Bold.ttf';
-            $fAr = file_exists($amiriB) ? $amiriB : $fontB;
+            $fAr = file_exists($arialArB) ? $arialArB : (file_exists($amiriB) ? $amiriB : $fontB);
             $bbA = imagettfbbox($szN, 0, $fAr, $shaped);
             $wA = $bbA[2] - $bbA[0];
             imagettftext($im, $szN, 0, $W - $mx - $wA, $nameY, $black, $fAr, $shaped);
