@@ -80,8 +80,6 @@ ob_start(); ?>
   <h1 class="text-2xl font-bold tracking-tight mb-1">Profil Blanko Penerjemah</h1>
   <p class="text-sm text-slate-500 mb-5">Data ini tercetak di setiap blanko pengesahan.</p>
   <div class="bg-white rounded-3xl shadow-sm p-6">
-  <h1 class="text-xl font-bold mb-1">Profil Blanko Penerjemah</h1>
-  <p class="text-sm text-slate-500 mb-4">Data ini tercetak di setiap blanko pengesahan.</p>
   <form method="post" enctype="multipart/form-data" class="space-y-4">
     <?= csrf_field() ?>
     <div class="grid sm:grid-cols-2 gap-4">
