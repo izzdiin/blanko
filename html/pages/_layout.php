@@ -26,13 +26,35 @@ function layout(string $title, string $content, ?array $user = null): void {
   .tab-active { color: #4f46e5; }
   .tab-active .tab-dot { opacity: 1; transform: scale(1); }
   .tab-dot { opacity: 0; transform: scale(0); transition: all .2s; }
+  /* Sidebar desktop: tampil >=640px (selaras breakpoint sm: layout ini) */
+  .sidebar-desktop { display: none; }
+  .side-link { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0.875rem; border-radius: 0.75rem; color: #475569; font-size: 0.875rem; font-weight: 500; }
+  .side-link:hover { background: #f1f5f9; }
+  .side-link.active { background: #eef2ff; color: #4f46e5; font-weight: 600; }
+  @media (min-width: 640px) {
+    .sidebar-desktop { display: flex; flex-direction: column; position: fixed; left: 0; top: 56px; bottom: 0; width: 240px; z-index: 30; background: #fff; border-right: 1px solid #e2e8f0; padding: 1rem 0.75rem; overflow-y: auto; }
+    .shift-desktop { margin-left: 240px; }
+    .hide-on-desktop { display: none !important; }
+  }
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen font-sans antialiased" x-data>
+<?php
+$cntAppr = 0;
+if ($u && (!empty($u['is_admin']) || $u['role'] === 'penerjemah')) {
+    if (!empty($u['is_admin'])) {
+        $cntAppr = (int)db()->query("SELECT COUNT(*) FROM users WHERE status='pending'")->fetchColumn();
+    } else {
+        $stAppr = db()->prepare("SELECT COUNT(*) FROM users WHERE status='pending' AND role='mitra' AND penerjemah_id=?");
+        $stAppr->execute([$u['id']]);
+        $cntAppr = (int)$stAppr->fetchColumn();
+    }
+}
+?>
 
 <!-- Header -->
 <header class="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-slate-200">
-  <div class="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+  <div class="shift-desktop max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
     <a href="?page=dashboard" class="flex items-center gap-2 font-bold text-lg text-indigo-700">
       <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white grid place-items-center"><i class="fa-solid fa-stamp text-sm"></i></span>
       <span class="tracking-tight">Blanko</span>
@@ -45,14 +67,13 @@ function layout(string $title, string $content, ?array $user = null): void {
         <a href="?page=inbox" class="w-9 h-9 rounded-full grid place-items-center text-slate-500 hover:bg-slate-100 relative" title="Notifikasi">
           <i class="fa-solid fa-bell"></i>
         </a>
-        <div class="hidden sm:flex items-center gap-2 pl-1">
-          <span class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 grid place-items-center text-sm font-bold"><?= e(mb_substr($u['name'], 0, 1)) ?></span>
-          <div class="leading-tight">
-            <div class="text-sm font-medium"><?= e($u['name']) ?></div>
-            <div class="text-xs text-slate-400 capitalize"><?= e($u['role']) ?></div>
-          </div>
-        </div>
-        <a href="?page=logout" class="h-9 px-3 rounded-full text-sm font-medium text-slate-500 hover:bg-slate-100 hidden sm:flex items-center">Keluar</a>
+        <?php if (!empty($u['is_admin']) || $u['role'] === 'penerjemah'): ?>
+          <a href="?page=approvals" class="hide-on-desktop w-9 h-9 rounded-full grid place-items-center text-slate-500 hover:bg-slate-100 relative" title="Persetujuan pendaftaran">
+            <i class="fa-solid fa-user-check"></i>
+            <?php if ($cntAppr > 0): ?><span class="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] grid place-items-center"><?= $cntAppr ?></span><?php endif; ?>
+          </a>
+        <?php endif; ?>
+        <a href="?page=logout" class="hide-on-desktop h-9 px-3 rounded-full text-sm font-medium text-slate-500 hover:bg-slate-100 hidden sm:flex items-center">Keluar</a>
       <?php else: ?>
         <a href="?page=login" class="h-9 px-4 rounded-full bg-indigo-600 text-white text-sm font-medium flex items-center hover:bg-indigo-500">Masuk</a>
       <?php endif; ?>
@@ -60,8 +81,37 @@ function layout(string $title, string $content, ?array $user = null): void {
   </div>
 </header>
 
+<?php if ($u): ?>
+<!-- Sidebar (desktop) -->
+<aside class="sidebar-desktop">
+  <div class="flex items-center gap-2" style="padding-bottom:0.75rem;margin-bottom:0.75rem;border-bottom:1px solid #e2e8f0">
+    <span class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 grid place-items-center text-sm font-bold"><?= e(mb_substr($u['name'], 0, 1)) ?></span>
+    <div class="leading-tight">
+      <div class="text-sm font-medium"><?= e($u['name']) ?></div>
+      <div class="text-xs text-slate-400 capitalize"><?= e($u['role']) ?></div>
+    </div>
+  </div>
+
+  <nav class="flex flex-col gap-1">
+    <a href="?page=dashboard" class="side-link<?= $page==='dashboard' ? ' active' : '' ?>"><i class="fa-solid fa-house" style="width:20px;text-align:center"></i>Beranda</a>
+    <?php if ($isPenerjemah): ?>
+    <a href="?page=templates" class="side-link<?= in_array($page, ['templates','template_edit']) ? ' active' : '' ?>"><i class="fa-solid fa-layer-group" style="width:20px;text-align:center"></i>Template</a>
+    <?php else: ?>
+    <a href="?page=upload" class="side-link<?= $page==='upload' ? ' active' : '' ?>"><i class="fa-solid fa-cloud-arrow-up" style="width:20px;text-align:center"></i>Upload</a>
+    <?php endif; ?>
+    <a href="?page=settings" class="side-link<?= $page==='settings' ? ' active' : '' ?>"><i class="fa-solid fa-user" style="width:20px;text-align:center"></i>Profil</a>
+    <?php if (!empty($u['is_admin']) || $u['role'] === 'penerjemah'): ?>
+    <a href="?page=approvals" class="side-link<?= $page==='approvals' ? ' active' : '' ?>"><i class="fa-solid fa-user-check" style="width:20px;text-align:center"></i>Persetujuan<?php if ($cntAppr > 0): ?><span class="min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] grid place-items-center" style="margin-left:auto"><?= $cntAppr ?></span><?php endif; ?></a>
+    <?php endif; ?>
+  </nav>
+  <div style="margin-top:auto;padding-top:1rem;border-top:1px solid #e2e8f0">
+    <a href="?page=logout" class="side-link"><i class="fa-solid fa-right-from-bracket" style="width:20px;text-align:center"></i>Keluar</a>
+  </div>
+</aside>
+<?php endif; ?>
+
 <!-- Konten -->
-<main class="max-w-5xl mx-auto px-4 pt-5 pb-28 sm:pb-12">
+<main class="shift-desktop max-w-5xl mx-auto px-4 pt-5 pb-28 sm:pb-12">
   <?= flash_show() ?>
   <?= $content ?>
 </main>
@@ -92,7 +142,7 @@ function layout(string $title, string $content, ?array $user = null): void {
 </nav>
 <?php endif; ?>
 
-<footer class="hidden sm:block text-center text-xs text-slate-400 pb-8">Blanko PWA — tools penerjemah tersumpah</footer>
+<footer class="shift-desktop hidden sm:block text-center text-xs text-slate-400 pb-8">Blanko PWA — tools penerjemah tersumpah</footer>
 </body>
 </html>
 <?php }

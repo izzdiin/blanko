@@ -57,6 +57,7 @@ ob_start(); ?>
             <div class="text-xs text-red-600 mt-1.5 bg-red-50 rounded-lg px-2.5 py-1.5">Alasan: <span x-text="d.decline_reason"></span></div>
           </template>
           <div class="flex flex-wrap gap-2 mt-3">
+
             <a :href="'?page=preview&id='+d.id" class="h-9 px-4 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-1.5 hover:bg-slate-200">
               <i class="fa-solid fa-eye"></i>Preview
             </a>

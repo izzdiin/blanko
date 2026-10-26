@@ -19,6 +19,13 @@ $routes = [
     'template_edit' => 'pages/template_edit.php',
     'template_preview' => 'pages/template_preview.php',
     'api_docs'   => 'pages/api_docs.php',
+    'register'   => 'pages/register.php',
+    'pending'    => 'pages/pending.php',
+    'approvals'  => 'pages/approvals.php',
+    'verify-sign' => 'pages/verify-sign.php',
+    'esign-asset' => 'pages/esign-asset.php',
+    'esign-preview' => 'pages/esign-preview.php',
+    'font-asset' => 'pages/font-asset.php',
 ];
 
 $page = $_GET['page'] ?? 'dashboard';
@@ -34,9 +41,20 @@ if (!isset($routes[$page])) {
 }
 
 // halaman publik: login & review via token
-$public = ['login', 'review'];
+$public = ['login', 'review', 'register', 'verify-sign', 'esign-asset', 'esign-preview', 'font-asset'];
 if (!in_array($page, $public, true) && !current_user()) {
     redirect('?page=login');
+}
+
+// Gerbang status akun: ditolak -> sesi dihancurkan & kembali ke login;
+// pending -> hanya boleh membuka halaman pending & login.
+$me = current_user();
+if ($me && ($me['status'] ?? 'active') === 'rejected') {
+    session_destroy();
+    redirect('?page=login');
+}
+if ($me && ($me['status'] ?? 'active') === 'pending' && !in_array($page, ['pending', 'login', 'verify-sign', 'esign-asset', 'esign-preview'], true)) {
+    redirect('?page=pending');
 }
 
 require __DIR__ . '/' . $routes[$page];

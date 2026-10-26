@@ -52,11 +52,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tokD = token_issue($docId, 'decline');
             $prev = app_url('?page=preview&id=' . $docId);
 
+
             $ps = db()->query("SELECT * FROM users WHERE role = 'penerjemah'")->fetchAll();
             foreach ($ps as $p) {
                 $msg = "Blanko: Permintaan pengesahan dokumen.\n"
                      . "Mitra: {$u['name']}\nJudul: {$title}\n\n"
                      . "Preview: {$prev}\n"
+
                      . "Setujui: " . action_url($tokA) . "\n"
                      . "Tolak: " . action_url($tokD);
                 if ($p['phone']) notify_wa((int)$p['id'], $p['phone'], $msg);

@@ -1,345 +1,334 @@
 <?php
-// Editor template blanko (tambah/edit) + live preview
+// Editor template blanko HTML (rich text) milik penerjemah + preview HTML langsung.
+// Aksi default/hapus lewat POST (tautan GET lama tidak pernah lolos csrf_check).
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/HtmlAttestation.php';
 $u = require_role('penerjemah');
+$uid = (int)$u['id'];
+$isAdmin = !empty($u['is_admin']);
 $id = (int)($_GET['id'] ?? 0);
 
-if ($id && isset($_GET['delete'])) {
-    csrf_check();
-    db()->prepare('DELETE FROM blanko_templates WHERE id = ? AND is_default = 0')->execute([$id]);
-    flash('Template dihapus.');
-    redirect('?page=templates');
-}
-if ($id && isset($_GET['setdefault'])) {
-    csrf_check();
-    db()->exec('UPDATE blanko_templates SET is_default = 0');
-    db()->prepare('UPDATE blanko_templates SET is_default = 1 WHERE id = ?')->execute([$id]);
-    flash('Template dijadikan default.');
-    redirect('?page=templates');
-}
-
-$t = null; $cfg = [];
+$t = null;
 if ($id) {
     $st = db()->prepare('SELECT * FROM blanko_templates WHERE id = ?');
     $st->execute([$id]);
     $t = $st->fetch();
     if (!$t) { http_response_code(404); exit('Template tidak ditemukan.'); }
-    $cfg = json_decode($t['config'] ?? '{}', true) ?: [];
+    if (!$isAdmin && (int)($t['user_id'] ?? 0) !== $uid) { http_response_code(403); exit('Template ini milik penerjemah lain.'); }
 }
 
-$defaults = [
-    'statement_id' => 'Saya, {name}, Penerjemah Tersumpah di Republik Indonesia berdasarkan peraturan perundang-undangan yang berlaku di Republik Indonesia, dengan ini menerangkan dan menyatakan, sesuai dengan sumpah jabatan saya, bahwa dokumen ini merupakan terjemahan yang benar, setia, dan lengkap dari dokumen sumber yang diberikan kepada saya.',
-    'statement_foreign' => '',
-    'foreign_rtl' => false,
-    'use_foreign_image' => false,
-    'font_size_base' => 13,
-    'font_size_name' => 14,
-    'font_size_foreign' => 15,
-    'line_height' => 1.35,
-    'show_border' => true,
-    'columns' => 2,
-    'show_stamp' => true,
-    'stamp_size' => 200,
-    'stamp_dx' => 0,
-    'stamp_dy' => 0,
-    'show_foreign_name' => false,
-];
-$cfg = array_merge($defaults, $cfg);
+// Aksi default/hapus (POST dari daftar template)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $id && isset($_POST['do'])) {
+    csrf_check();
+    if ($_POST['do'] === 'delete') {
+        if ((int)$t['is_default'] !== 0) { flash('Template default tidak bisa dihapus.', 'err'); }
+        else {
+            db()->prepare('DELETE FROM blanko_templates WHERE id = ?')->execute([$id]);
+            flash('Template dihapus.');
+        }
+    } elseif ($_POST['do'] === 'setdefault') {
+        $owner = (int)($t['user_id'] ?? $uid);
+        db()->prepare('UPDATE blanko_templates SET is_default = 0 WHERE user_id = ?')->execute([$owner]);
+        db()->prepare('UPDATE blanko_templates SET is_default = 1 WHERE id = ?')->execute([$id]);
+        flash('Template dijadikan default.');
+    }
+    redirect('?page=templates');
+}
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// Isi awal: dari DB, atau konversi config lama bila kosong, atau starter baru
+$formBody = '';
+$formPlacement = 'strip';
+$formFont = '';
+if ($t) {
+    $formBody = (string)($t['body_html'] ?? '');
+    if (trim(strip_tags($formBody)) === '') {
+        $cfg = json_decode($t['config'] ?? '{}', true) ?: [];
+        $formBody = html_seed_body($cfg);
+    }
+    $formPlacement = in_array($t['placement'] ?? '', ['strip','page'], true) ? $t['placement'] : 'strip';
+    $formFont = in_array($t['font'] ?? '', ['arial', 'notosanssc', 'dejavusans'], true) ? $t['font'] : '';
+} else {
+    $formBody = '<p>Saya, {name}, Penerjemah Tersumpah di Republik Indonesia berdasarkan peraturan perundang-undangan yang berlaku di Republik Indonesia, dengan ini menerangkan dan menyatakan, sesuai dengan sumpah jabatan saya, bahwa dokumen ini merupakan terjemahan yang benar, setia, dan lengkap dari dokumen sumber yang diberikan kepada saya.</p>'
+        . '<p>{city}, {date}</p>'
+        . '<p><strong>{name}</strong></p>'
+        . '<p>Penerjemah Tersumpah [{lang_pair}] {sk}. Alamat {address}, Telp.{phone}. Email : {email}.</p>'
+        . '<p>No. Reg. Terjemahan : {reg_no}</p>';
+}
+$formName = $t['name'] ?? '';
+$formLang = $t['lang_pair'] ?? '';
+
+// Simpan (POST tanpa 'do')
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['do'])) {
     csrf_check();
     $name = trim($_POST['name'] ?? '');
     $lang_pair = trim($_POST['lang_pair'] ?? '');
+    $placementPost = in_array($_POST['placement'] ?? '', ['strip','page'], true) ? $_POST['placement'] : 'strip';
+    $fontPost = in_array($_POST['font'] ?? '', ['arial', 'notosanssc', 'dejavusans'], true) ? $_POST['font'] : '';
+    $cleanBody = html_sanitize((string)($_POST['body_html'] ?? ''));
     if ($name === '') { flash('Nama template wajib diisi.', 'err'); }
+    elseif (trim(strip_tags($cleanBody)) === '') { flash('Isi template tidak boleh kosong.', 'err'); }
     else {
-        $newCfg = [
-            'statement_id' => trim($_POST['statement_id'] ?? ''),
-            'statement_foreign' => trim($_POST['statement_foreign'] ?? ''),
-            'foreign_rtl' => isset($_POST['foreign_rtl']) ? true : false,
-            'use_foreign_image' => isset($_POST['use_foreign_image']) ? true : false,
-            'font_size_base' => max(8, min(24, (int)($_POST['font_size_base'] ?? 13))),
-            'font_size_name' => max(8, min(28, (int)($_POST['font_size_name'] ?? 14))),
-            'font_size_foreign' => max(8, min(28, (int)($_POST['font_size_foreign'] ?? 15))),
-            'line_height' => max(1.0, min(2.5, (float)($_POST['line_height'] ?? 1.35))),
-            'show_border' => isset($_POST['show_border']),
-            'columns' => (int)($_POST['columns'] ?? 2) === 1 ? 1 : 2,
-            'show_stamp' => isset($_POST['show_stamp']),
-            'stamp_size' => max(80, min(400, (int)($_POST['stamp_size'] ?? 200))),
-            'stamp_dx' => max(-600, min(600, (int)($_POST['stamp_dx'] ?? 0))),
-            'stamp_dy' => max(-300, min(300, (int)($_POST['stamp_dy'] ?? 0))),
-            'show_foreign_name' => isset($_POST['show_foreign_name']),
-            'align_id' => in_array($_POST['align_id'] ?? '', ['left','center','right','justify'], true) ? $_POST['align_id'] : 'justify',
-            'align_foreign' => in_array($_POST['align_foreign'] ?? '', ['left','center','right','justify'], true) ? $_POST['align_foreign'] : 'justify',
-        ];
         if ($id) {
-            $st = db()->prepare('UPDATE blanko_templates SET name=?, lang_pair=?, config=?, updated_at=datetime("now") WHERE id=?');
-            $st->execute([$name, $lang_pair, json_encode($newCfg, JSON_UNESCAPED_UNICODE), $id]);
+            db()->prepare('UPDATE blanko_templates SET name=?, lang_pair=?, body_html=?, placement=?, font=?, updated_at=datetime("now") WHERE id=?')
+                ->execute([$name, $lang_pair, $cleanBody, $placementPost, $fontPost, $id]);
             flash('Template diperbarui.');
         } else {
-            $st = db()->prepare('INSERT INTO blanko_templates (name, lang_pair, config) VALUES (?,?,?)');
-            $st->execute([$name, $lang_pair, json_encode($newCfg, JSON_UNESCAPED_UNICODE)]);
+            $cs = db()->prepare('SELECT COUNT(*) FROM blanko_templates WHERE user_id = ?');
+            $cs->execute([$uid]);
+            $isDef = ((int)$cs->fetchColumn() === 0) ? 1 : 0;
+            db()->prepare('INSERT INTO blanko_templates (name, lang_pair, body_html, placement, font, user_id, is_default) VALUES (?,?,?,?,?,?,?)')
+                ->execute([$name, $lang_pair, $cleanBody, $placementPost, $fontPost, $uid, $isDef]);
             $id = (int)db()->lastInsertId();
             flash('Template ditambahkan.');
         }
         redirect('?page=template_edit&id=' . $id);
     }
+    $formName = $name; $formLang = $lang_pair; $formBody = $cleanBody; $formPlacement = $placementPost; $formFont = $fontPost;
 }
 
+// Data contoh untuk preview (profil penerjemah sendiri)
+$ps = db()->prepare('SELECT * FROM users WHERE id = ?');
+$ps->execute([$uid]);
+$prof = $ps->fetch() ?: [];
+$bln = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+$dateId = date('d') . ' ' . $bln[(int)date('n') - 1] . ' ' . date('Y');
+$pairSample = $formLang !== '' ? $formLang : ($prof['lang_pair'] ?? '');
+$fromSample = $pairSample; $toSample = '';
+if (($p = mb_strpos($pairSample, ' ke ')) !== false) {
+    $fromSample = mb_substr($pairSample, 0, $p);
+    $toSample = mb_substr($pairSample, $p + 4);
+}
+$sample = [
+    'name' => $prof['name'] ?? 'Nama Penerjemah',
+    'name_foreign' => ($prof['name_ar'] ?? '') !== '' ? $prof['name_ar'] : ($prof['name_zh'] ?? ''),
+    'sk' => $prof['sk'] ?? '',
+    'sk_date' => $prof['sk_date'] ?? '',
+    'reg_no' => 'TRJ-XXX-0001',
+    'date' => $dateId,
+    'doc_title' => 'Judul Dokumen (contoh)',
+    'lang_pair' => $pairSample,
+    'lang_from' => $fromSample,
+    'lang_to' => $toSample,
+    'city' => $prof['city'] ?? '',
+    'address' => $prof['address'] ?? '',
+    'phone' => $prof['phone'] ?? '',
+    'email' => $prof['email'] ?? '',
+];
+
 ob_start(); ?>
-<div class="max-w-6xl mx-auto grid lg:grid-cols-2 gap-6">
+<style>
+@font-face { font-family: 'Arial'; src: url('?page=font-asset&f=Arial.ttf'); font-display: swap; }
+@font-face { font-family: 'Arial'; src: url('?page=font-asset&f=Arial-Bold.ttf'); font-weight: bold; font-display: swap; }
+@font-face { font-family: 'Noto Sans SC'; src: url('?page=font-asset&f=NotoSansSC-Regular.ttf'); font-display: swap; }
+@font-face { font-family: 'DejaVu Sans'; src: url('?page=font-asset&f=DejaVuSans.ttf'); font-display: swap; }
+@font-face { font-family: 'DejaVu Sans'; src: url('?page=font-asset&f=DejaVuSans-Bold.ttf'); font-weight: bold; font-display: swap; }
+</style>
+<div class="max-w-3xl mx-auto">
 <div class="bg-white rounded-3xl shadow-sm p-6">
   <h1 class="text-xl font-bold mb-1"><?= $id ? 'Edit Template' : 'Tambah Template' ?></h1>
-  <p class="text-sm text-slate-500 mb-4">Gunakan <code>{name}</code> untuk nama penerjemah otomatis.</p>
+  <p class="text-sm text-slate-500 mb-4">Tulis naskah pengesahan seperti di Word. Sisipkan variabel agar datanya terisi otomatis saat approve.</p>
   <form method="post" class="space-y-4" id="tpl-form">
     <?= csrf_field() ?>
+    <input type="hidden" name="body_html" id="tpl-body-input">
     <div class="grid sm:grid-cols-2 gap-4">
       <div><label class="block text-sm font-medium mb-1.5">Nama template</label>
-        <input name="name" required value="<?= e($t['name'] ?? '') ?>" class="w-full h-11 bg-slate-50 border-0 rounded-2xl px-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Indonesia - Inggris"></div>
+        <input name="name" required value="<?= e($formName) ?>" class="w-full h-11 bg-slate-50 border-0 rounded-2xl px-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Indonesia - Inggris"></div>
       <div><label class="block text-sm font-medium mb-1.5">Pasangan bahasa</label>
-        <input name="lang_pair" value="<?= e($t['lang_pair'] ?? '') ?>" class="w-full h-11 bg-slate-50 border-0 rounded-2xl px-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Bahasa Indonesia ke Bahasa Inggris"></div>
+        <input name="lang_pair" value="<?= e($formLang) ?>" class="w-full h-11 bg-slate-50 border-0 rounded-2xl px-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Bahasa Indonesia ke Bahasa Inggris"></div>
     </div>
-    <div><label class="block text-sm font-medium mb-1.5">Pernyataan Bahasa Indonesia</label>
-      <textarea name="statement_id" rows="4" class="w-full bg-slate-50 border-0 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"><?= e($cfg['statement_id']) ?></textarea></div>
-    <div><label class="block text-sm font-medium mb-1.5">Pernyataan Bahasa Asing (kosongkan jika tidak ada)</label>
-      <textarea name="statement_foreign" rows="4" dir="auto" class="w-full bg-slate-50 border-0 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"><?= e($cfg['statement_foreign']) ?></textarea></div>
-    <div class="grid sm:grid-cols-3 gap-4">
-      <div><label class="block text-sm font-medium mb-1.5">Ukuran font isi</label>
-        <input type="number" name="font_size_base" min="8" max="24" value="<?= (int)$cfg['font_size_base'] ?>" class="w-full h-11 bg-slate-50 border-0 rounded-2xl px-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></div>
-      <div><label class="block text-sm font-medium mb-1.5">Ukuran font nama</label>
-        <input type="number" name="font_size_name" min="8" max="28" value="<?= (int)$cfg['font_size_name'] ?>" class="w-full h-11 bg-slate-50 border-0 rounded-2xl px-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></div>
-      <div><label class="block text-sm font-medium mb-1.5">Ukuran font asing</label>
-        <input type="number" name="font_size_foreign" min="8" max="28" value="<?= (int)$cfg['font_size_foreign'] ?>" class="w-full h-11 bg-slate-50 border-0 rounded-2xl px-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></div>
-    </div>
-    <div class="grid sm:grid-cols-3 gap-4">
-      <div><label class="block text-sm font-medium mb-1.5">Jarak baris</label>
-        <input type="number" name="line_height" step="0.05" min="1" max="2.5" value="<?= e((string)$cfg['line_height']) ?>" class="w-full h-11 bg-slate-50 border-0 rounded-2xl px-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></div>
-      <div><label class="block text-sm font-medium mb-1.5">Ukuran cap (px)</label>
-        <input type="number" name="stamp_size" min="80" max="400" value="<?= (int)$cfg['stamp_size'] ?>" class="w-full h-11 bg-slate-50 border-0 rounded-2xl px-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></div>
-      <div><label class="block text-sm font-medium mb-1.5">Geser cap X (px)</label>
-        <input type="number" id="stamp_dx" name="stamp_dx" min="-600" max="600" value="<?= (int)($cfg['stamp_dx'] ?? 0) ?>" class="w-full h-11 bg-slate-50 border-0 rounded-2xl px-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></div>
-      <div><label class="block text-sm font-medium mb-1.5">Geser cap Y (px)</label>
-        <input type="number" id="stamp_dy" name="stamp_dy" min="-300" max="300" value="<?= (int)($cfg['stamp_dy'] ?? 0) ?>" class="w-full h-11 bg-slate-50 border-0 rounded-2xl px-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></div>
-    </div>
-    <div class="grid sm:grid-cols-3 gap-4">
-      <div><label class="block text-sm font-medium mb-1.5">Kolom</label>
-        <select name="columns" class="w-full h-11 bg-slate-50 border-0 rounded-2xl px-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-          <option value="2" <?= (int)$cfg['columns'] === 2 ? 'selected' : '' ?>>2 kolom (ID | Asing)</option>
-          <option value="1" <?= (int)$cfg['columns'] === 1 ? 'selected' : '' ?>>1 kolom</option>
-        </select></div>
-    </div>
-    <div class="grid sm:grid-cols-2 gap-4">
-      <div><label class="block text-sm font-medium mb-1.5">Rata teks Indonesia</label>
-        <select name="align_id" class="w-full h-11 bg-slate-50 border-0 rounded-2xl px-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-          <?php foreach (['left'=>'Kiri','center'=>'Tengah','right'=>'Kanan','justify'=>'Justify'] as $v=>$l): ?>
-          <option value="<?= $v ?>" <?= ($cfg['align_id'] ?? 'justify') === $v ? 'selected' : '' ?>><?= $l ?></option>
-          <?php endforeach; ?>
-        </select></div>
-      <div><label class="block text-sm font-medium mb-1.5">Rata teks asing</label>
-        <select name="align_foreign" class="w-full h-11 bg-slate-50 border-0 rounded-2xl px-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-          <?php foreach (['left'=>'Kiri','center'=>'Tengah','right'=>'Kanan','justify'=>'Justify'] as $v=>$l): ?>
-          <option value="<?= $v ?>" <?= ($cfg['align_foreign'] ?? 'justify') === $v ? 'selected' : '' ?>><?= $l ?></option>
-          <?php endforeach; ?>
-        </select></div>
-    </div>
-    <div class="flex flex-wrap gap-4 text-sm">
-      <label><input type="checkbox" name="show_border" <?= $cfg['show_border'] ? 'checked' : '' ?> class="mr-2">Garis atas</label>
-      <label><input type="checkbox" name="show_stamp" <?= $cfg['show_stamp'] ? 'checked' : '' ?> class="mr-2">Tampilkan cap</label>
-      <label><input type="checkbox" name="foreign_rtl" <?= $cfg['foreign_rtl'] ? 'checked' : '' ?> class="mr-2">Teks asing RTL</label>
-      <label><input type="checkbox" name="use_foreign_image" <?= $cfg['use_foreign_image'] ? 'checked' : '' ?> class="mr-2">Arab pakai gambar</label>
-      <label><input type="checkbox" name="show_foreign_name" <?= $cfg['show_foreign_name'] ? 'checked' : '' ?> class="mr-2">Nama Arab kanan bawah</label>
+    <div><label class="block text-sm font-medium mb-1.5">Penempatan pengesahan</label>
+      <select name="placement" id="tpl-placement" class="w-full h-11 bg-slate-50 border-0 rounded-2xl px-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+        <option value="strip" <?= $formPlacement === 'strip' ? 'selected' : '' ?>>Tempel di bawah halaman terakhir (strip)</option>
+        <option value="page" <?= $formPlacement === 'page' ? 'selected' : '' ?>>Halaman pengesahan sendiri di akhir dokumen</option>
+      </select></div>
+    <div><label class="block text-sm font-medium mb-1.5">Font pengesahan</label>
+      <select name="font" id="tpl-font" class="w-full h-11 bg-slate-50 border-0 rounded-2xl px-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+        <option value="" <?= $formFont === '' ? 'selected' : '' ?>>Otomatis (sesuai bahasa)</option>
+        <option value="arial" <?= $formFont === 'arial' ? 'selected' : '' ?>>Arial</option>
+        <option value="notosanssc" <?= $formFont === 'notosanssc' ? 'selected' : '' ?>>Noto Sans SC</option>
+        <option value="dejavusans" <?= $formFont === 'dejavusans' ? 'selected' : '' ?>>DejaVu Sans</option>
+      </select></div>
+    <div>
+      <label class="block text-sm font-medium mb-1.5">Isi pengesahan</label>
+      <div class="flex flex-wrap items-center gap-1.5 mb-2">
+        <button type="button" data-cmd="bold" class="h-9 w-9 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold" title="Tebal">B</button>
+        <button type="button" data-cmd="italic" class="h-9 w-9 rounded-xl bg-slate-100 hover:bg-slate-200 italic" title="Miring">I</button>
+        <button type="button" data-cmd="underline" class="h-9 w-9 rounded-xl bg-slate-100 hover:bg-slate-200 underline" title="Garis bawah">U</button>
+        <button type="button" data-cmd="justifyLeft" class="h-9 w-9 rounded-xl bg-slate-100 hover:bg-slate-200" title="Rata kiri"><i class="fa-solid fa-align-left"></i></button>
+        <button type="button" data-cmd="justifyCenter" class="h-9 w-9 rounded-xl bg-slate-100 hover:bg-slate-200" title="Rata tengah"><i class="fa-solid fa-align-center"></i></button>
+        <button type="button" data-cmd="justifyRight" class="h-9 w-9 rounded-xl bg-slate-100 hover:bg-slate-200" title="Rata kanan"><i class="fa-solid fa-align-right"></i></button>
+        <button type="button" data-cmd="justifyFull" class="h-9 w-9 rounded-xl bg-slate-100 hover:bg-slate-200" title="Justify"><i class="fa-solid fa-align-justify"></i></button>
+        <button type="button" data-cmd="insertUnorderedList" class="h-9 w-9 rounded-xl bg-slate-100 hover:bg-slate-200" title="Daftar bullet"><i class="fa-solid fa-list-ul"></i></button>
+        <button type="button" data-cmd="insertOrderedList" class="h-9 w-9 rounded-xl bg-slate-100 hover:bg-slate-200" title="Daftar nomor"><i class="fa-solid fa-list-ol"></i></button>
+        <button type="button" data-cmd="formatBlock" data-val="h2" class="h-9 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold" title="Judul besar">H2</button>
+        <button type="button" data-cmd="formatBlock" data-val="h3" class="h-9 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold" title="Judul kecil">H3</button>
+        <button type="button" data-cmd="formatBlock" data-val="p" class="h-9 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold" title="Paragraf biasa">P</button>
+        <button type="button" data-cmd="removeFormat" class="h-9 w-9 rounded-xl bg-slate-100 hover:bg-slate-200" title="Hapus format"><i class="fa-solid fa-eraser"></i></button>
+        <select id="tpl-fontsize" class="h-9 rounded-xl bg-slate-100 text-xs px-2 outline-none" title="Ukuran font (pilih teks dulu)">
+          <option value="">Ukuran font</option>
+          <?php foreach ([10,11,12,13,14,16,18,20,24] as $fs): ?><option value="<?= $fs ?>"><?= $fs ?> pt</option><?php endforeach; ?>
+        </select>
+        <button type="button" data-dir="rtl" class="h-9 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold" title="Arah paragraf: kanan ke kiri (Arab)">RTL</button>
+        <button type="button" data-dir="ltr" class="h-9 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold" title="Arah paragraf: kiri ke kanan">LTR</button>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 mb-2">
+        <select id="tpl-var" class="h-9 rounded-xl bg-slate-100 text-xs px-2 outline-none">
+          <option value="">Sisipkan variabel...</option>
+          <?php foreach (html_template_vars() as $k => $label): ?><option value="<?= $k ?>">{<?= $k ?>} — <?= e($label) ?></option><?php endforeach; ?>
+        </select>
+        <span class="text-xs text-slate-400">Variabel terisi otomatis dari profil &amp; dokumen saat approve.</span>
+      </div>
+      <div id="tpl-editor" contenteditable="true" dir="auto" class="w-full bg-slate-50 border-0 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none overflow-y-auto" style="min-height:280px"><?= html_sanitize($formBody) ?></div>
     </div>
     <div class="flex gap-3">
-      <button class="h-11 px-6 bg-indigo-600 text-white rounded-2xl font-semibold hover:bg-indigo-500 shadow-lg shadow-indigo-600/25"><i class="fa-solid fa-save mr-2"></i>Simpan</button>
-      <a href="?page=templates" class="h-11 px-6 rounded-2xl border border-slate-200 flex items-center hover:bg-slate-50">Kembali</a>
+      <button type="button" id="tpl-preview-btn" class="h-9 px-4 text-sm rounded-xl border border-slate-200 hover:bg-slate-50 font-semibold"><i class="fa-solid fa-eye mr-2"></i>Preview</button>
+      <button class="h-9 px-4 text-sm bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-500 shadow-lg shadow-indigo-600/25"><i class="fa-solid fa-save mr-2"></i>Simpan</button>
+      <a href="?page=templates" class="h-9 px-4 text-sm rounded-xl border border-slate-200 flex items-center hover:bg-slate-50">Kembali</a>
     </div>
   </form>
 </div>
-<div class="bg-white rounded shadow p-6 lg:sticky lg:top-6 self-start">
-  <h2 class="text-lg font-bold mb-1">Live Preview</h2>
-  <p class="text-xs text-slate-500 mb-3">Render persis hasil akhir (data contoh). <span class="text-indigo-600">Drag bingkai untuk geser, drag sudut kanan-bawah untuk ubah ukuran cap.</span></p>
-  <div id="tpl-preview-wrap" class="relative border rounded overflow-hidden bg-slate-100 min-h-[200px]">
-    <img id="tpl-preview" alt="Preview blanko" class="w-full h-auto block select-none" draggable="false">
-    <div id="stamp-handle" class="absolute border-2 border-dashed border-indigo-500 bg-indigo-500/10 cursor-move hidden touch-none" style="z-index:10" title="Drag untuk geser cap">
-      <span class="absolute -top-6 left-0 text-[10px] bg-indigo-600 text-white px-1.5 py-0.5 rounded whitespace-nowrap">cap</span>
-      <span id="stamp-resize" class="absolute -bottom-2 -right-2 w-5 h-5 bg-indigo-600 border-2 border-white rounded-full cursor-nwse-resize shadow" title="Drag untuk ubah ukuran"></span>
+<div id="tpl-preview-modal" style="display:none;position:fixed;inset:0;z-index:60;background:rgba(15,23,42,.55);align-items:flex-start;justify-content:center;padding:24px 16px;overflow-y:auto">
+  <div style="background:#fff;border-radius:20px;width:100%;max-width:560px;padding:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <h2 style="font-weight:700;font-size:18px">Preview Template</h2>
+      <button type="button" id="tpl-preview-close" style="width:36px;height:36px;border-radius:9999px;background:#f1f5f9;font-size:18px;line-height:1" title="Tutup">×</button>
+    </div>
+    <p style="font-size:12px;color:#64748b;margin:6px 0 12px">HTML langsung dengan data contoh. Hasil PDF akhir dirender dari HTML yang sama (ilustrasi tata letak, bukan piksel-per-piksel).</p>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <label style="font-size:13px;font-weight:500" for="tpl-papersize">Ukuran kertas</label>
+      <select id="tpl-papersize" style="height:40px;border-radius:12px;background:#f8fafc;padding:0 12px;font-size:14px;outline:none">
+        <option value="210/297" selected>A4 (210 × 297 mm)</option>
+        <option value="297/420">A3 (297 × 420 mm)</option>
+        <option value="216/356">Legal (216 × 356 mm)</option>
+        <option value="215/330">F4 (215 × 330 mm)</option>
+      </select>
+    </div>
+    <div class="border rounded overflow-hidden bg-slate-100" id="tpl-preview-box" style="aspect-ratio:210/297">
+      <div id="tpl-preview-content" class="bg-white h-full overflow-hidden" style="display:flex;flex-direction:column;padding:12mm 15mm;font-size:11pt;line-height:1.5;"></div>
+    </div>
+    <p id="tpl-preview-note" class="text-xs text-slate-500 mt-2"></p>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px">
+      <button type="button" id="tpl-preview-close2" class="h-11 px-6 rounded-2xl border border-slate-200 hover:bg-slate-50">Tutup</button>
     </div>
   </div>
-  <div class="flex items-center gap-2 mt-3 flex-wrap">
-    <button type="button" id="stamp-apply" class="h-9 px-4 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-500 disabled:opacity-40" disabled title="Terapkan posisi & ukuran cap"><i class="fa-solid fa-check mr-1.5"></i>Terapkan</button>
-    <button type="button" id="stamp-undo" class="h-9 px-4 rounded-xl bg-slate-100 text-slate-700 text-sm font-semibold hover:bg-slate-200 disabled:opacity-40" disabled title="Kembalikan ke posisi sebelumnya"><i class="fa-solid fa-rotate-left mr-1.5"></i>Undo</button>
-    <button type="button" id="stamp-edit" class="h-9 px-4 rounded-xl bg-indigo-50 text-indigo-700 text-sm font-semibold hover:bg-indigo-100" title="Tampilkan bingkai untuk atur posisi cap"><i class="fa-solid fa-up-down-left-right mr-1.5"></i>Atur posisi</button>
-    <span id="stamp-dirty" class="text-xs text-amber-600 hidden"><i class="fa-solid fa-circle-exclamation mr-1"></i>Belum diterapkan</span>
-  </div>
-  <div id="tpl-loading" class="text-xs text-slate-400 mt-2 hidden">Merender...</div>
 </div>
 </div>
 <script>
 (function() {
+  var editor = document.getElementById('tpl-editor');
+  var hidden = document.getElementById('tpl-body-input');
   var form = document.getElementById('tpl-form');
-  var img = document.getElementById('tpl-preview');
-  var wrap = document.getElementById('tpl-preview-wrap');
-  var handle = document.getElementById('stamp-handle');
-  var resizeEl = document.getElementById('stamp-resize');
-  var dxInput = document.getElementById('stamp_dx');
-  var dyInput = document.getElementById('stamp_dy');
-  var sizeInput = form.querySelector('input[name="stamp_size"]');
-  var applyBtn = document.getElementById('stamp-apply');
-  var undoBtn = document.getElementById('stamp-undo');
-  var editBtn = document.getElementById('stamp-edit');
-  var dirtyEl = document.getElementById('stamp-dirty');
-  var loading = document.getElementById('tpl-loading');
-  var timer = null, seq = 0, lastUrl = null;
-  var STRIP_W = 1240, STRIP_H = 380, MX = 89, BOTTOM_PAD = 44;
-
-  // posisi terakhir yang sudah "diterapkan"
-  var committed = { dx: 0, dy: 0, size: 200 };
-  var handleDismissed = false; // true setelah Terapkan ditekan
-  function readInputs() {
-    return {
-      dx: parseInt(dxInput.value, 10) || 0,
-      dy: parseInt(dyInput.value, 10) || 0,
-      size: parseInt(sizeInput.value, 10) || 200
-    };
+  var content = document.getElementById('tpl-preview-content');
+  var note = document.getElementById('tpl-preview-note');
+  var placementSel = document.getElementById('tpl-placement');
+  var fontSel = document.getElementById('tpl-font');
+  var langInput = document.querySelector('input[name="lang_pair"]');
+  var modal = document.getElementById('tpl-preview-modal');
+  var paperSel = document.getElementById('tpl-papersize');
+  var previewBox = document.getElementById('tpl-preview-box');
+  var fontCss = { 'arial': 'Arial, sans-serif', 'notosanssc': "'Noto Sans SC', sans-serif", 'dejavusans': "'DejaVu Sans', sans-serif" };
+  function currentFontFamily() {
+    var f = fontSel ? fontSel.value : '';
+    if (f && fontCss[f]) return fontCss[f];
+    var lp = (langInput ? langInput.value : '').toLowerCase();
+    if (lp.indexOf('mandarin') !== -1 || lp.indexOf('cina') !== -1 || lp.indexOf('tiongkok') !== -1) return fontCss['notosanssc'];
+    return fontCss['arial'];
   }
-  function isDirty() {
-    var c = readInputs();
-    return c.dx !== committed.dx || c.dy !== committed.dy || c.size !== committed.size;
+  function openPreview() { modal.style.display = 'flex'; document.body.style.overflow = 'hidden'; renderPreview(); }
+  function closePreview() { modal.style.display = 'none'; document.body.style.overflow = ''; }
+  var sample = <?= json_encode($sample, JSON_UNESCAPED_UNICODE) ?>;
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
-  function refreshButtons() {
-    var d = isDirty();
-    applyBtn.disabled = !d;
-    undoBtn.disabled = !d;
-    dirtyEl.classList.toggle('hidden', !d);
+  function renderPreview() {
+    var fam = currentFontFamily();
+    editor.style.fontFamily = fam;
+    content.style.fontFamily = fam;
+    var html = editor.innerHTML.replace(/\{(\w+)\}/g, function(m, k) {
+      return (k in sample) ? esc(sample[k]) : m;
+    });
+    content.innerHTML = html;
+    var isStrip = placementSel.value === 'strip';
+    content.style.justifyContent = isStrip ? 'flex-end' : 'flex-start';
+    var dims = (paperSel ? paperSel.value : '210/297').split('/');
+    var paperW = parseFloat(dims[0]) || 210;
+    previewBox.style.aspectRatio = paperSel ? paperSel.value : '210/297';
+    var bw = previewBox.clientWidth;
+    if (bw > 0) {
+      var scale = bw / paperW;
+      content.style.fontSize = (3.8806 * scale) + 'px';
+      var pad = (15 * scale) + 'px';
+      content.style.padding = pad + ' ' + pad;
+    }
+    note.textContent = isStrip
+      ? 'Mode strip: konten menempel di bawah halaman. Bila terlalu tinggi (di atas 140 mm), approve akan menolak dan meminta pindah ke mode halaman.'
+      : 'Mode halaman: konten menjadi halaman pengesahan sendiri di akhir dokumen.';
   }
-  function markCommitted() {
-    committed = readInputs();
-    refreshButtons();
+  function cmd(c, v) {
+    editor.focus();
+    document.execCommand(c, false, (v === undefined || v === '') ? null : v);
+    renderPreview();
   }
-
-  function render() {
-    var mySeq = ++seq;
-    loading.classList.remove('hidden');
-    var fd = new FormData(form);
-    fetch('?page=template_preview', { method: 'POST', body: fd, credentials: 'same-origin' })
-      .then(function(r) { if (!r.ok) throw new Error(r.status); return r.blob(); })
-      .then(function(b) {
-        if (mySeq !== seq) return;
-        if (lastUrl) URL.revokeObjectURL(lastUrl);
-        lastUrl = URL.createObjectURL(b);
-        img.src = lastUrl;
-        loading.classList.add('hidden');
-      })
-      .catch(function() { loading.classList.add('hidden'); });
-  }
-  function scheduleRender(ms) { clearTimeout(timer); timer = setTimeout(render, ms || 700); }
-  form.addEventListener('input', function() { handleDismissed = false; scheduleRender(700); setTimeout(refreshButtons, 50); });
-  form.addEventListener('change', function() { handleDismissed = false; scheduleRender(300); setTimeout(refreshButtons, 50); });
-
-  // --- drag & resize cap ---
-  function stampVisible() {
-    var cb = form.querySelector('input[name="show_stamp"]');
-    return cb && cb.checked;
-  }
-  function positionHandle(force) {
-    if (!stampVisible() || !img.clientWidth || (handleDismissed && !force)) { handle.classList.add('hidden'); return; }
-    var scale = img.clientWidth / STRIP_W;
-    var c = readInputs();
-    var x = (STRIP_W - MX - c.size + c.dx) * scale;
-    var y = (STRIP_H - c.size - BOTTOM_PAD + c.dy) * scale;
-    var s = c.size * scale;
-    handle.style.left = x + 'px';
-    handle.style.top = y + 'px';
-    handle.style.width = s + 'px';
-    handle.style.height = s + 'px';
-    handle.classList.remove('hidden');
-  }
-  img.addEventListener('load', function() { positionHandle(); });
-  form.addEventListener('change', function() { setTimeout(positionHandle, 900); });
-  form.addEventListener('input', function() { setTimeout(positionHandle, 900); });
-
-  // geser (move)
-  var dragging = false, startX = 0, startY = 0, startDx = 0, startDy = 0;
-  function moveDown(e) {
-    if (e.target === resizeEl) return; // biar resize yang handle
-    dragging = true;
-    var p = e.touches ? e.touches[0] : e;
-    startX = p.clientX; startY = p.clientY;
-    startDx = parseInt(dxInput.value, 10) || 0;
-    startDy = parseInt(dyInput.value, 10) || 0;
-    e.preventDefault(); e.stopPropagation();
-  }
-  function moveMove(e) {
-    if (!dragging) return;
-    var p = e.touches ? e.touches[0] : e;
-    var scale = img.clientWidth / STRIP_W;
-    var ndx = Math.round(startDx + (p.clientX - startX) / scale);
-    var ndy = Math.round(startDy + (p.clientY - startY) / scale);
-    dxInput.value = Math.max(-600, Math.min(600, ndx));
-    dyInput.value = Math.max(-300, Math.min(300, ndy));
-    positionHandle(); refreshButtons();
-    e.preventDefault();
-  }
-  function moveUp() {
-    if (!dragging) return;
-    dragging = false;
-    scheduleRender(400);
-  }
-
-  // ubah ukuran (resize) via sudut kanan-bawah
-  var resizing = false, rsX = 0, rsSize = 200;
-  function resizeDown(e) {
-    resizing = true;
-    var p = e.touches ? e.touches[0] : e;
-    rsX = p.clientX;
-    rsSize = parseInt(sizeInput.value, 10) || 200;
-    e.preventDefault(); e.stopPropagation();
-  }
-  function resizeMove(e) {
-    if (!resizing) return;
-    var p = e.touches ? e.touches[0] : e;
-    var scale = img.clientWidth / STRIP_W;
-    var ns = Math.round(rsSize + (p.clientX - rsX) / scale);
-    sizeInput.value = Math.max(80, Math.min(400, ns));
-    positionHandle(); refreshButtons();
-    e.preventDefault();
-  }
-  function resizeUp() {
-    if (!resizing) return;
-    resizing = false;
-    scheduleRender(400);
-  }
-
-  handle.addEventListener('mousedown', moveDown);
-  document.addEventListener('mousemove', function(e) { moveMove(e); resizeMove(e); });
-  document.addEventListener('mouseup', function() { moveUp(); resizeUp(); });
-  handle.addEventListener('touchstart', moveDown, { passive: false });
-  document.addEventListener('touchmove', function(e) { moveMove(e); resizeMove(e); }, { passive: false });
-  document.addEventListener('touchend', function() { moveUp(); resizeUp(); });
-  resizeEl.addEventListener('mousedown', resizeDown);
-  resizeEl.addEventListener('touchstart', resizeDown, { passive: false });
-
-  // terapkan & undo
-  applyBtn.addEventListener('click', function() {
-    markCommitted();
-    handleDismissed = true;
-    handle.classList.add('hidden'); // sembunyikan bingkai & label setelah diterapkan
-    scheduleRender(200);
+  document.querySelectorAll('[data-cmd]').forEach(function(b) {
+    b.addEventListener('click', function() { cmd(b.dataset.cmd, b.dataset.val); });
   });
-  undoBtn.addEventListener('click', function() {
-    dxInput.value = committed.dx;
-    dyInput.value = committed.dy;
-    sizeInput.value = committed.size;
-    positionHandle(); refreshButtons();
-    scheduleRender(200);
+  var sizeSel = document.getElementById('tpl-fontsize');
+  sizeSel.addEventListener('change', function() {
+    var px = sizeSel.value;
+    if (!px) return;
+    editor.focus();
+    var sel = window.getSelection();
+    if (sel.rangeCount && !sel.getRangeAt(0).collapsed) {
+      var r = sel.getRangeAt(0);
+      var span = document.createElement('span');
+      span.style.fontSize = px + 'pt';
+      try { r.surroundContents(span); }
+      catch (e) { span.appendChild(r.extractContents()); r.insertNode(span); }
+    }
+    sizeSel.value = '';
+    renderPreview();
   });
-  editBtn.addEventListener('click', function() {
-    handleDismissed = false;
-    positionHandle(true); // tampilkan kembali bingkai
+  document.querySelectorAll('[data-dir]').forEach(function(b) {
+    b.addEventListener('click', function() {
+      editor.focus();
+      var sel = window.getSelection();
+      if (!sel.rangeCount) return;
+      var n = sel.anchorNode;
+      if (n.nodeType === 3) n = n.parentNode;
+      var block = n.closest ? n.closest('p,div,li,td') : null;
+      if (block && editor.contains(block)) block.dir = b.dataset.dir;
+      renderPreview();
+    });
   });
-
-  // init: anggap nilai awal form sebagai committed
-  markCommitted();
-  render();
+  var varSel = document.getElementById('tpl-var');
+  varSel.addEventListener('change', function() {
+    if (!varSel.value) return;
+    editor.focus();
+    document.execCommand('insertText', false, '{' + varSel.value + '}');
+    varSel.value = '';
+    renderPreview();
+  });
+  placementSel.addEventListener('change', renderPreview);
+  if (fontSel) fontSel.addEventListener('change', renderPreview);
+  if (langInput) langInput.addEventListener('input', renderPreview);
+  if (paperSel) paperSel.addEventListener('change', renderPreview);
+  var previewBtn = document.getElementById('tpl-preview-btn');
+  if (previewBtn) previewBtn.addEventListener('click', openPreview);
+  var closeBtn = document.getElementById('tpl-preview-close');
+  var closeBtn2 = document.getElementById('tpl-preview-close2');
+  if (closeBtn) closeBtn.addEventListener('click', closePreview);
+  if (closeBtn2) closeBtn2.addEventListener('click', closePreview);
+  if (modal) modal.addEventListener('click', function(ev) { if (ev.target === modal) closePreview(); });
+  document.addEventListener('keydown', function(ev) { if (ev.key === 'Escape') closePreview(); });
+  var tplResizeT = null;
+  window.addEventListener('resize', function() {
+    if (modal.style.display !== 'flex') return;
+    if (tplResizeT) clearTimeout(tplResizeT);
+    tplResizeT = setTimeout(renderPreview, 150);
+  });
+  editor.addEventListener('input', renderPreview);
+  form.addEventListener('submit', function() { hidden.value = editor.innerHTML; });
+  renderPreview();
 })();
 </script>
 <?php layout($id ? 'Edit Template' : 'Tambah Template', ob_get_clean(), $u); ?>

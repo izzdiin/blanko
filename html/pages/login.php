@@ -9,11 +9,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $st->execute([$email]);
     $u = $st->fetch();
     if ($u && password_verify($pass, $u['password_hash'])) {
-        session_regenerate_id(true);
-        $_SESSION['uid'] = $u['id'];
-        redirect('?page=dashboard');
+        $st = $u['status'] ?? 'active';
+        if ($st === 'rejected') {
+            flash('Akun ditolak. Hubungi admin.', 'err');
+        } else {
+            session_regenerate_id(true);
+            $_SESSION['uid'] = $u['id'];
+            redirect($st === 'pending' ? '?page=pending' : '?page=dashboard');
+        }
+    } else {
+        flash('Email atau password salah.', 'err');
     }
-    flash('Email atau password salah.', 'err');
 }
 ob_start(); ?>
 <div class="max-w-md mx-auto pt-8 sm:pt-14">
@@ -40,6 +46,7 @@ ob_start(); ?>
       Masuk
     </button>
   </form>
+  <p class="text-center text-sm text-slate-500 mt-4">Belum punya akun? <a href="?page=register" class="text-indigo-600 font-semibold hover:underline">Daftar di sini</a></p>
   <div class="mt-4 text-xs text-slate-500 bg-white rounded-2xl shadow-sm p-4">
     <div class="font-semibold text-slate-700 mb-1">Akun demo</div>
     <div>Mitra: mitra@blanko.demo / mitra123</div>

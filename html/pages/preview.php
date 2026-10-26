@@ -15,7 +15,8 @@ if ($u['role'] === 'mitra' && (int)$d['user_id'] !== (int)$u['id']) {
 }
 
 $fileUrl = '?page=file&id=' . $id;
-$isPdf = str_contains($d['mime'], 'pdf');
+$isPdf = str_contains($d['mime'], 'pdf')
+    || ($d['status'] === 'approved' && str_ends_with((string)($d['stamped_name'] ?? ''), '.pdf'));
 // jika sudah diapprove, preview tampilkan versi stamped (dengan blanko + cap + ttd)
 if ($d['status'] === 'approved' && $d['stamped_name']) {
     $fileUrl = '?page=download&id=' . $id . '&preview=1';
@@ -43,11 +44,43 @@ ob_start(); ?>
 
     <div class="rounded-2xl overflow-hidden bg-slate-100 border border-slate-100">
       <?php if ($isPdf): ?>
-        <div class="p-3 bg-amber-50 text-sm flex items-center gap-2">
-          <i class="fa-solid fa-circle-info text-amber-600"></i>
-          <span>Jika preview tidak tampil di HP, <a href="<?= e($fileUrl) ?>" target="_blank" rel="noopener" class="font-semibold text-indigo-700 underline">buka di tab baru</a>.</span>
-        </div>
-        <iframe src="<?= e($fileUrl) ?>" class="w-full" style="height:70vh" loading="lazy" title="Preview PDF"></iframe>
+        <div id="pv-wrap" class="space-y-3 p-2 sm:p-3"></div>
+        <p id="pv-loading" class="text-sm text-slate-500 text-center py-8">Memuat dokumen…</p>
+        <p id="pv-error" class="text-sm text-red-600 text-center py-8 hidden">Gagal memuat dokumen. <a href="<?= e($fileUrl) ?>" target="_blank" rel="noopener" class="font-semibold underline">Buka/unduh file</a>.</p>
+        <script src="assets/pdf.min.js"></script>
+        <script>
+        (function () {
+          var wrap = document.getElementById('pv-wrap');
+          var loading = document.getElementById('pv-loading');
+          var err = document.getElementById('pv-error');
+          if (!wrap) return;
+          pdfjsLib.GlobalWorkerOptions.workerSrc = 'assets/pdf.worker.min.js';
+          pdfjsLib.getDocument(<?= json_encode($fileUrl) ?>).promise.then(function (doc) {
+            if (loading) loading.style.display = 'none';
+            var chain = Promise.resolve();
+            for (var n = 1; n <= doc.numPages; n++) {
+              (function (pageno) {
+                chain = chain.then(function () {
+                  return doc.getPage(pageno).then(function (page) {
+                    var canvas = document.createElement('canvas');
+                    canvas.className = 'w-full h-auto block bg-white rounded-xl';
+                    wrap.appendChild(canvas);
+                    var vp = page.getViewport({ scale: 1 });
+                    var scale = wrap.clientWidth > 0 ? wrap.clientWidth / vp.width : 1;
+                    var vp2 = page.getViewport({ scale: scale });
+                    canvas.width = vp2.width; canvas.height = vp2.height;
+                    return page.render({ canvasContext: canvas.getContext('2d'), viewport: vp2 }).promise;
+                  });
+                });
+              })(n);
+            }
+            return chain;
+          }).catch(function () {
+            if (loading) loading.style.display = 'none';
+            if (err) err.classList.remove('hidden');
+          });
+        })();
+        </script>
       <?php else: ?>
         <img src="<?= e($fileUrl) ?>" alt="Preview dokumen" loading="lazy" class="w-full h-auto">
       <?php endif; ?>

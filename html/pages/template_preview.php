@@ -18,7 +18,7 @@ $cfg = [
     'line_height' => max(1.0, min(2.5, (float)($_POST['line_height'] ?? 1.35))),
     'show_border' => isset($_POST['show_border']),
     'columns' => (int)($_POST['columns'] ?? 2) === 1 ? 1 : 2,
-    'show_stamp' => isset($_POST['show_stamp']),
+    'show_stamp' => false, // mode e-sign: strip tanpa cap
     'stamp_size' => max(80, min(400, (int)($_POST['stamp_size'] ?? 200))),
     'stamp_dx' => max(-600, min(600, (int)($_POST['stamp_dx'] ?? 0))),
     'stamp_dy' => max(-300, min(300, (int)($_POST['stamp_dy'] ?? 0))),
@@ -33,6 +33,7 @@ $pr->execute([$u['id']]);
 $prov = $pr->fetch() ?: [];
 $p = [
     'name' => $prov['name'] ?? 'NAMA PENERJEMAH',
+    'ar_name' => $prov['name_ar'] ?? '',
     'sk' => $prov['sk'] ?? 'No. AHU-XX',
     'sk_date' => $prov['sk_date'] ?? '',
     'address' => $prov['address'] ?? 'Alamat contoh',

@@ -114,7 +114,20 @@ function blanko_strip(array $p, array $d, string $stampImg, array $cfg = []): st
     // kolom bahasa asing
     $y_ar = $y_id;
     $alignF = $cfg['align_foreign'] ?? 'justify';
-    if (!empty($cfg['statement_foreign'])) {
+    // gambar asing didahulukan bila diminta (Arab pakai gambar)
+    if ($cfg['use_foreign_image']) {
+        $arP = imagecreatefrompng('/var/www/data/stamp-assets/arabic_para.png');
+        if ($arP) {
+            $aw = imagesx($arP); $ah = imagesy($arP);
+            $dw = $cw_ar; $dh = (int)($dw * $ah / $aw);
+            $tmp = imagecreatetruecolor($dw, $dh);
+            imagefill($tmp, 0, 0, $white);
+            imagecopyresampled($tmp, $arP, 0, 0, 0, 0, $dw, $dh, $aw, $ah);
+            imagecopy($im, $tmp, $x_ar, 14, 0, 0, $dw, $dh);
+            imagedestroy($arP); imagedestroy($tmp);
+            $y_ar = 14 + $dh;
+        }
+    } elseif (!empty($cfg['statement_foreign'])) {
         $f_text = str_replace('{name}', $p['name'], $cfg['statement_foreign']);
         $szF = (int)($cfg['font_size_foreign'] ?? $sz + 2);
         $lhF = (int)($szF * ($cfg['line_height'] ?? 1.35));
@@ -140,18 +153,6 @@ function blanko_strip(array $p, array $d, string $stampImg, array $cfg = []): st
             $ya += $lhF;
         }
         $y_ar = $ya;
-    } elseif ($cfg['use_foreign_image']) {
-        $arP = imagecreatefrompng('/var/www/data/stamp-assets/arabic_para.png');
-        if ($arP) {
-            $aw = imagesx($arP); $ah = imagesy($arP);
-            $dw = $cw_ar; $dh = (int)($dw * $ah / $aw);
-            $tmp = imagecreatetruecolor($dw, $dh);
-            imagefill($tmp, 0, 0, $white);
-            imagecopyresampled($tmp, $arP, 0, 0, 0, 0, $dw, $dh, $aw, $ah);
-            imagecopy($im, $tmp, $x_ar, 14, 0, 0, $dw, $dh);
-            imagedestroy($arP); imagedestroy($tmp);
-            $y_ar = 14 + $dh;
-        }
     }
 
     $y = max($y_id, $y_ar) + 12;
