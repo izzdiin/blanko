@@ -3,6 +3,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/Token.php';
 require_once __DIR__ . '/../includes/Notify.php';
+require_once __DIR__ . '/../includes/Rekap.php';
 
 $u = require_role('mitra');
 
@@ -16,6 +17,8 @@ const UPLOAD_MIME = [
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $title = trim($_POST['title'] ?? '');
+    $jenisDok = rekap_jenis_clean($_POST['jenis_dokumen'] ?? '');
+    [$klienTipe, $klienVal] = rekap_klien_from_post($_POST);
     $f = $_FILES['doc'] ?? null;
 
     $err = null;
@@ -41,10 +44,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $sha = hash_file('sha256', $dest);
             $st = db()->prepare(
-                "INSERT INTO documents (user_id, title, original_name, stored_name, mime, size, sha256)
-                 VALUES (?,?,?,?,?,?,?)"
+                "INSERT INTO documents (user_id, title, original_name, stored_name, mime, size, sha256, jenis_dokumen, klien_tipe, klien)
+                 VALUES (?,?,?,?,?,?,?,?,?,?)"
             );
-            $st->execute([$u['id'], $title, $f['name'], $stored, $mime, $f['size'], $sha]);
+            $st->execute([$u['id'], $title, $f['name'], $stored, $mime, $f['size'], $sha, $jenisDok, $klienTipe, $klienVal]);
             $docId = (int)db()->lastInsertId();
 
             // token approve/decline + notifikasi ke semua penerjemah
@@ -82,6 +85,30 @@ ob_start(); ?>
       <label class="block text-sm font-medium mb-1.5">Judul dokumen</label>
       <input type="text" name="title" required maxlength="200"
              class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="cth: Terjemahan Akta Kelahiran">
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1.5">Jenis dokumen <span class="text-slate-400 font-normal">(untuk rekap tahunan penerjemah)</span></label>
+      <select name="jenis_dokumen" class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none">
+        <option value="">— pilih jenis dokumen —</option>
+        <?php foreach (REKAP_JENIS as $j): ?>
+        <option value="<?= e($j) ?>"><?= e($j) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div x-data="{mode:'kategori'}">
+      <label class="block text-sm font-medium mb-1.5">Klien <span class="text-slate-400 font-normal">(opsional)</span></label>
+      <div class="flex gap-4 mb-2 text-sm">
+        <label class="flex items-center gap-1.5"><input type="radio" name="klien_tipe" value="kategori" checked @click="mode='kategori'" class="w-4 h-4 accent-indigo-600">Kategori</label>
+        <label class="flex items-center gap-1.5"><input type="radio" name="klien_tipe" value="nama" @click="mode='nama'" class="w-4 h-4 accent-indigo-600">Nama bebas</label>
+      </div>
+      <select name="klien_kategori" x-show="mode==='kategori'" class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none">
+        <option value="">— pilih kategori klien —</option>
+        <?php foreach (REKAP_KATEGORI as $k): ?>
+        <option value="<?= e($k) ?>"><?= e($k) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <input type="text" name="klien_nama" x-show="mode==='nama'" maxlength="150" placeholder="Nama klien"
+             class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none">
     </div>
     <div>
       <label class="block text-sm font-medium mb-1.5">File (PDF/JPG/PNG, maks 10 MB)</label>

@@ -28,6 +28,8 @@ function layout(string $title, string $content, ?array $user = null): void {
   .tab-dot { opacity: 0; transform: scale(0); transition: all .2s; }
   /* Sidebar desktop: tampil >=640px (selaras breakpoint sm: layout ini) */
   .sidebar-desktop { display: none; }
+  /* Logo header mode PC: pojok kiri, di atas kolom sidebar; tersembunyi di HP */
+  .header-logo-pc { display: none; }
   .side-link { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0.875rem; border-radius: 0.75rem; color: #475569; font-size: 0.875rem; font-weight: 500; }
   .side-link:hover { background: #f1f5f9; }
   .side-link.active { background: #eef2ff; color: #4f46e5; font-weight: 600; }
@@ -35,6 +37,10 @@ function layout(string $title, string $content, ?array $user = null): void {
     .sidebar-desktop { display: flex; flex-direction: column; position: fixed; left: 0; top: 56px; bottom: 0; width: 240px; z-index: 30; background: #fff; border-right: 1px solid #e2e8f0; padding: 1rem 0.75rem; overflow-y: auto; }
     .shift-desktop { margin-left: 240px; }
     .hide-on-desktop { display: none !important; }
+    /* Logo header dalam alur disembunyikan di PC (digantikan zona logo pojok kiri); ruangnya tetap dijaga agar tombol header tidak bergeser */
+    .logo-hide-desktop { visibility: hidden; }
+    /* Zona logo PC: menempel pojok kiri header, selebar sidebar (240px), sejajar isi sidebar */
+    .header-logo-pc { display: flex; position: fixed; left: 0; top: 0; width: 240px; height: 56px; align-items: center; padding: 0 0.75rem; z-index: 50; }
   }
 </style>
 </head>
@@ -54,8 +60,17 @@ if ($u && (!empty($u['is_admin']) || $u['role'] === 'penerjemah')) {
 
 <!-- Header -->
 <header class="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-slate-200">
-  <div class="shift-desktop max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+  <?php if ($u): ?>
+  <!-- Logo mode PC: tetap di header, pojok kiri, di atas kolom sidebar -->
+  <div class="header-logo-pc">
     <a href="?page=dashboard" class="flex items-center gap-2 font-bold text-lg text-indigo-700">
+      <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white grid place-items-center"><i class="fa-solid fa-stamp text-sm"></i></span>
+      <span class="tracking-tight">Blanko</span>
+    </a>
+  </div>
+  <?php endif; ?>
+  <div class="shift-desktop max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+    <a href="?page=dashboard" class="flex items-center gap-2 font-bold text-lg text-indigo-700<?= $u ? ' logo-hide-desktop' : '' ?>">
       <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white grid place-items-center"><i class="fa-solid fa-stamp text-sm"></i></span>
       <span class="tracking-tight">Blanko</span>
     </a>
@@ -99,6 +114,11 @@ if ($u && (!empty($u['is_admin']) || $u['role'] === 'penerjemah')) {
     <?php else: ?>
     <a href="?page=upload" class="side-link<?= $page==='upload' ? ' active' : '' ?>"><i class="fa-solid fa-cloud-arrow-up" style="width:20px;text-align:center"></i>Upload</a>
     <?php endif; ?>
+    <?php if ($isPenerjemah): ?>
+    <a href="?page=rekap" class="side-link<?= $page==='rekap' ? ' active' : '' ?>"><i class="fa-solid fa-chart-column" style="width:20px;text-align:center"></i>Rekap Tahunan</a>
+    <?php else: ?>
+    <a href="?page=catatan" class="side-link<?= $page==='catatan' ? ' active' : '' ?>"><i class="fa-solid fa-clipboard-list" style="width:20px;text-align:center"></i>Catatan Pencocokan</a>
+    <?php endif; ?>
     <a href="?page=settings" class="side-link<?= $page==='settings' ? ' active' : '' ?>"><i class="fa-solid fa-user" style="width:20px;text-align:center"></i>Profil</a>
     <?php if (!empty($u['is_admin']) || $u['role'] === 'penerjemah'): ?>
     <a href="?page=approvals" class="side-link<?= $page==='approvals' ? ' active' : '' ?>"><i class="fa-solid fa-user-check" style="width:20px;text-align:center"></i>Persetujuan<?php if ($cntAppr > 0): ?><span class="min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] grid place-items-center" style="margin-left:auto"><?= $cntAppr ?></span><?php endif; ?></a>
@@ -119,7 +139,7 @@ if ($u && (!empty($u['is_admin']) || $u['role'] === 'penerjemah')) {
 <?php if ($u): ?>
 <!-- Bottom tab bar (mobile) -->
 <nav class="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 pb-safe">
-  <div class="grid grid-cols-4 text-center">
+  <div class="grid grid-cols-5 text-center">
     <a href="?page=dashboard" class="py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='dashboard' ? 'tab-active' : 'text-slate-400' ?>">
       <i class="fa-solid fa-house text-lg"></i>Beranda<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
     </a>
@@ -130,6 +150,15 @@ if ($u && (!empty($u['is_admin']) || $u['role'] === 'penerjemah')) {
     <?php else: ?>
     <a href="?page=upload" class="py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='upload' ? 'tab-active' : 'text-slate-400' ?>">
       <i class="fa-solid fa-cloud-arrow-up text-lg"></i>Upload<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
+    </a>
+    <?php endif; ?>
+    <?php if ($isPenerjemah): ?>
+    <a href="?page=rekap" class="py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='rekap' ? 'tab-active' : 'text-slate-400' ?>">
+      <i class="fa-solid fa-chart-column text-lg"></i>Rekap<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
+    </a>
+    <?php else: ?>
+    <a href="?page=catatan" class="py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='catatan' ? 'tab-active' : 'text-slate-400' ?>">
+      <i class="fa-solid fa-clipboard-list text-lg"></i>Catatan<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
     </a>
     <?php endif; ?>
     <a href="?page=settings" class="py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='settings' ? 'tab-active' : 'text-slate-400' ?>">

@@ -12,6 +12,10 @@ CREATE TABLE IF NOT EXISTS users (
   signature_file TEXT,
   name_ar TEXT DEFAULT '',
   sk TEXT DEFAULT '',
+  sk_date TEXT DEFAULT '',
+  rekap_periode_aktif INTEGER NOT NULL DEFAULT 0,
+  rekap_periode_mulai TEXT,
+  rekap_periode_selesai TEXT,
   address TEXT DEFAULT '',
   city TEXT DEFAULT '',
   lang_pair TEXT DEFAULT '',
@@ -38,6 +42,11 @@ CREATE TABLE IF NOT EXISTS documents (
   reviewed_by INTEGER REFERENCES users(id),
   reviewed_at TEXT,
   stamped_name TEXT,
+  template_id INTEGER,
+  jenis_dokumen TEXT,
+  halaman INTEGER,
+  klien_tipe TEXT NOT NULL DEFAULT 'kategori',
+  klien TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_documents_user ON documents(user_id);
@@ -81,3 +90,36 @@ CREATE TABLE IF NOT EXISTS esign_records (
   signed_at TEXT DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_esign_token ON esign_records(token);
+
+-- Rekap Tahunan: pekerjaan di luar Blanko.
+-- jenis_catatan 'rekap' = catatan resmi penerjemah (terhitung);
+-- 'pencocokan' = catatan mitra (bahan cocok data, tidak terhitung).
+CREATE TABLE IF NOT EXISTS work_entries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  penerjemah_id INTEGER NOT NULL REFERENCES users(id),
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  jenis_catatan TEXT NOT NULL CHECK(jenis_catatan IN ('rekap','pencocokan')),
+  tanggal TEXT NOT NULL,
+  judul TEXT NOT NULL,
+  jenis_dokumen TEXT,
+  arah_bahasa TEXT NOT NULL DEFAULT '',
+  halaman INTEGER,
+  klien_tipe TEXT NOT NULL DEFAULT 'kategori',
+  klien TEXT,
+  catatan TEXT DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_work_entries_penerjemah ON work_entries(penerjemah_id, tanggal);
+CREATE INDEX IF NOT EXISTS idx_work_entries_creator ON work_entries(created_by);
+
+-- Rekap Tahunan: penanda pengingat tenggat (anti kirim dobel per kanal).
+CREATE TABLE IF NOT EXISTS report_reminder_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  period_end TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK(kind IN ('H-30','H-7')),
+  channel TEXT NOT NULL CHECK(channel IN ('wa','email')),
+  sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_id, period_end, kind, channel)
+);

@@ -1,6 +1,7 @@
 <?php
 // Profil pengguna — penerjemah: profil blanko; mitra: info akun
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/Rekap.php';
 $u = require_login();
 $isPen = $u['role'] === 'penerjemah';
 
@@ -88,6 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'name_ar' => trim($_POST['name_ar'] ?? ''),
         'name_zh' => trim($_POST['name_zh'] ?? ''),
         'sk' => trim($_POST['sk'] ?? ''),
+        'sk_date' => trim($_POST['sk_date'] ?? ''),
         'address' => trim($_POST['address'] ?? ''),
         'city' => trim($_POST['city'] ?? ''),
         'phone' => trim($_POST['phone'] ?? ''),
@@ -115,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stamp = $up('stamp', 'stamp');
         $sig = $up('signature', 'sig');
 
-        $sql = "UPDATE users SET name=?, name_ar=?, name_zh=?, sk=?, address=?, city=?, phone=?, email=?, lang_pair=?, lang_reverse=?";
+        $sql = "UPDATE users SET name=?, name_ar=?, name_zh=?, sk=?, sk_date=?, address=?, city=?, phone=?, email=?, lang_pair=?, lang_reverse=?";
         $par = array_values($f);
         if ($stamp) { $sql .= ", stamp_file=?"; $par[] = $stamp; }
         if ($sig) { $sql .= ", signature_file=?"; $par[] = $sig; }
@@ -146,6 +148,10 @@ ob_start(); ?>
     <div><label class="block text-sm font-medium mb-1.5">SK Pengangkatan</label>
       <input name="sk" value="<?= e($p['sk']) ?>" class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none"
              placeholder="Surat Keputusan Menteri Hukum dan HAM RI No. ..."></div>
+    <div><label class="block text-sm font-medium mb-1.5">Tanggal SK Pengangkatan</label>
+      <input name="sk_date" value="<?= e($p['sk_date'] ?? '') ?>" class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none"
+             placeholder="cth: 14 Maret 2022">
+      <p class="text-xs text-slate-400 mt-1">Tercetak di blanko pengesahan dan menjadi dasar usulan periode Tahun Lapor.</p></div>
     <div><label class="block text-sm font-medium mb-1.5">Pasangan bahasa</label>
       <div class="flex items-center gap-2">
         <span class="h-12 px-4 rounded-2xl bg-slate-100 text-slate-500 flex items-center shrink-0 text-[15px]">Bahasa Indonesia</span>
@@ -247,6 +253,30 @@ ob_start(); ?>
 })();
 </script>
   </div>
+<?php
+$rkAktif = !empty($p['rekap_periode_aktif']);
+$rkPrefill = rekap_default_period(rekap_parse_tanggal($p['sk_date'] ?? ''));
+$rkMulai = $p['rekap_periode_mulai'] ?? ($rkPrefill[0] ?? '');
+$rkSelesai = $p['rekap_periode_selesai'] ?? ($rkPrefill[1] ?? '');
+?>
+<div class="bg-white rounded-3xl shadow-sm p-6 mt-5">
+  <h2 class="font-bold text-lg tracking-tight">Tahun Lapor — Rekap Tahunan</h2>
+  <p class="text-sm text-slate-500 mt-1">Periode laporan pelaksanaan jabatan tahunan Anda. Bila aktif, panel rekap menampilkan hitung mundur tenggat dan pengingat dikirim via WA dan email pada H-30 dan H-7. Tanggal usulan berasal dari tanggal SK pengangkatan dan dapat disesuaikan bebas.</p>
+  <form method="post" action="?page=rekap" class="grid sm:grid-cols-3 gap-4 items-end mt-4">
+    <?= csrf_field() ?>
+    <input type="hidden" name="do" value="period_save">
+    <input type="hidden" name="return" value="settings">
+    <div><label class="block text-sm font-medium mb-1.5">Mulai periode</label>
+      <input type="date" name="periode_mulai" value="<?= e($rkMulai) ?>" class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none"></div>
+    <div><label class="block text-sm font-medium mb-1.5">Selesai / tenggat</label>
+      <input type="date" name="periode_selesai" value="<?= e($rkSelesai) ?>" class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none"></div>
+    <div class="flex items-center gap-3">
+      <label class="flex items-center gap-1.5 text-sm shrink-0"><input type="checkbox" name="periode_aktif" value="1" <?= $rkAktif ? 'checked' : '' ?> class="w-4 h-4 accent-indigo-600">Aktif</label>
+      <button class="h-12 px-5 bg-indigo-600 text-white rounded-2xl font-semibold hover:bg-indigo-500">Simpan</button>
+    </div>
+  </form>
+  <a href="?page=rekap" class="inline-block text-sm text-indigo-600 font-medium mt-4">Buka panel Rekap Tahunan →</a>
+</div>
 </div>
 <script>
 (function () {

@@ -2,6 +2,7 @@
 // Review: approve / decline via signed token (dari WA/email) atau sesi penerjemah.
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/Token.php';
+require_once __DIR__ . '/../includes/Rekap.php';
 require_once __DIR__ . '/../includes/esign.php';
 require_once __DIR__ . '/../includes/Notify.php';
 require_once __DIR__ . '/../includes/Attestation.php';
@@ -188,10 +189,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if ($final !== '') {
                 $stampedName = basename($final);
+                // Rekap tahunan: halaman hasil dihitung dari berkas final;
+                // jenis & klien dapat disesuaikan penerjemah pada form review.
+                $halaman = rekap_pdf_pages($final);
+                $jenisDok = array_key_exists('rk_jenis', $_POST)
+                    ? rekap_jenis_clean($_POST['rk_jenis'])
+                    : ($d['jenis_dokumen'] ?? null);
+                if (array_key_exists('rk_klien_tipe', $_POST)) {
+                    [$klienTipe, $klienVal] = rekap_klien_from_post($_POST, 'rk_klien');
+                } else {
+                    $klienTipe = $d['klien_tipe'] ?? 'kategori';
+                    $klienVal = $d['klien'] ?? null;
+                }
                 $up = db()->prepare(
-                    "UPDATE documents SET status='approved', reviewed_by=?, reviewed_at=datetime('now'), stamped_name=?, template_id=? WHERE id=?"
+                    "UPDATE documents SET status='approved', reviewed_by=?, reviewed_at=datetime('now'), stamped_name=?, template_id=?, jenis_dokumen=?, halaman=?, klien_tipe=?, klien=? WHERE id=?"
                 );
-                $up->execute([$reviewer, $stampedName, $tplId ?: null, $docId]);
+                $up->execute([$reviewer, $stampedName, $tplId ?: null, $jenisDok, $halaman, $klienTipe, $klienVal, $docId]);
                 $msg = "Blanko: Dokumen disetujui.\nJudul: {$d['title']}\n"
                      . "Unduh: " . app_url('?page=download&id=' . $docId);
                 if ($d['mitra_phone']) notify_wa((int)$d['mitra_id'], $d['mitra_phone'], $msg);
@@ -332,6 +345,38 @@ ob_start(); ?>
           t();
         })();
         </script>
+        <div class="border-t pt-4" x-data="{mode:'<?= ($d['klien_tipe'] ?? 'kategori') === 'nama' ? 'nama' : 'kategori' ?>'}">
+          <p class="text-sm font-medium">Data rekap tahunan</p>
+          <p class="text-xs text-slate-500 mt-1">Jenis dan klien dari mitra dapat disesuaikan sebelum disetujui. Jumlah halaman hasil dihitung otomatis saat approve.</p>
+          <div class="mt-3 space-y-3">
+            <div>
+              <label class="block text-sm font-medium mb-1.5">Jenis dokumen</label>
+              <input type="text" name="rk_jenis" list="rk-jenis-list" maxlength="100" value="<?= e($d['jenis_dokumen'] ?? '') ?>"
+                     class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="— pilih atau ketik —">
+              <datalist id="rk-jenis-list">
+                <?php foreach (REKAP_JENIS as $j): ?>
+                <option value="<?= e($j) ?>"></option>
+                <?php endforeach; ?>
+              </datalist>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1.5">Klien</label>
+              <div class="flex gap-4 mb-2 text-sm">
+                <label class="flex items-center gap-1.5"><input type="radio" name="rk_klien_tipe" value="kategori" <?= ($d['klien_tipe'] ?? 'kategori') !== 'nama' ? 'checked' : '' ?> @click="mode='kategori'" class="w-4 h-4 accent-indigo-600">Kategori</label>
+                <label class="flex items-center gap-1.5"><input type="radio" name="rk_klien_tipe" value="nama" <?= ($d['klien_tipe'] ?? '') === 'nama' ? 'checked' : '' ?> @click="mode='nama'" class="w-4 h-4 accent-indigo-600">Nama bebas</label>
+              </div>
+              <select name="rk_klien_kategori" x-show="mode==='kategori'" class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none">
+                <option value="">— pilih kategori klien —</option>
+                <?php foreach (REKAP_KATEGORI as $k): ?>
+                <option value="<?= e($k) ?>" <?= ($d['klien_tipe'] ?? '') === 'kategori' && ($d['klien'] ?? '') === $k ? 'selected' : '' ?>><?= e($k) ?></option>
+                <?php endforeach; ?>
+              </select>
+              <input type="text" name="rk_klien_nama" x-show="mode==='nama'" maxlength="150" placeholder="Nama klien"
+                     value="<?= ($d['klien_tipe'] ?? '') === 'nama' ? e($d['klien'] ?? '') : '' ?>"
+                     class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+          </div>
+        </div>
         <?php if ($esignToken): ?>
         <div class="border-t pt-4">
           <p class="text-sm font-medium">QR Tanda Tangan Elektronik (simulasi)</p>
