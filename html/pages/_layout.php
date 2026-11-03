@@ -48,8 +48,14 @@ function layout(string $title, string $content, ?array $user = null): void {
 <body class="bg-slate-50 text-slate-800 min-h-screen font-sans antialiased" x-data>
 <?php
 $cntAppr = 0;
-if ($u && !empty($u['is_admin'])) {
-    $cntAppr = (int)db()->query("SELECT COUNT(*) FROM users WHERE status='pending'")->fetchColumn();
+if ($u && (!empty($u['is_admin']) || $u['role'] === 'penerjemah')) {
+    if (!empty($u['is_admin'])) {
+        $cntAppr = (int)db()->query("SELECT COUNT(*) FROM users WHERE status='pending'")->fetchColumn();
+    } else {
+        $stAppr = db()->prepare("SELECT COUNT(*) FROM users WHERE status='pending' AND role='mitra' AND penerjemah_id=?");
+        $stAppr->execute([$u['id']]);
+        $cntAppr = (int)$stAppr->fetchColumn();
+    }
 }
 ?>
 
@@ -77,7 +83,7 @@ if ($u && !empty($u['is_admin'])) {
         <a href="?page=inbox" class="w-9 h-9 rounded-full grid place-items-center text-slate-500 hover:bg-slate-100 relative" title="Notifikasi">
           <i class="fa-solid fa-bell"></i>
         </a>
-        <?php if (!empty($u['is_admin'])): ?>
+        <?php if (!empty($u['is_admin']) || $u['role'] === 'penerjemah'): ?>
           <a href="?page=approvals" class="hide-on-desktop w-9 h-9 rounded-full grid place-items-center text-slate-500 hover:bg-slate-100 relative" title="Persetujuan pendaftaran">
             <i class="fa-solid fa-user-check"></i>
             <?php if ($cntAppr > 0): ?><span class="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] grid place-items-center"><?= $cntAppr ?></span><?php endif; ?>
@@ -115,7 +121,7 @@ if ($u && !empty($u['is_admin'])) {
     <a href="?page=catatan" class="side-link<?= $page==='catatan' ? ' active' : '' ?>"><i class="fa-solid fa-clipboard-list" style="width:20px;text-align:center"></i>Catatan Pencocokan</a>
     <?php endif; ?>
     <a href="?page=settings" class="side-link<?= $page==='settings' ? ' active' : '' ?>"><i class="fa-solid fa-user" style="width:20px;text-align:center"></i>Profil</a>
-    <?php if (!empty($u['is_admin'])): ?>
+    <?php if (!empty($u['is_admin']) || $u['role'] === 'penerjemah'): ?>
     <a href="?page=approvals" class="side-link<?= $page==='approvals' ? ' active' : '' ?>"><i class="fa-solid fa-user-check" style="width:20px;text-align:center"></i>Persetujuan<?php if ($cntAppr > 0): ?><span class="min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] grid place-items-center" style="margin-left:auto"><?= $cntAppr ?></span><?php endif; ?></a>
     <?php endif; ?>
   </nav>

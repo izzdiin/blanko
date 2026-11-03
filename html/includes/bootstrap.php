@@ -58,17 +58,18 @@ function require_role(string $role): array {
     return $u;
 }
 
-// Apakah user boleh menyetujui pendaftaran: KHUSUS admin platform.
-// (Keputusan user 4 Nov 2026: persetujuan pendaftaran sepenuhnya milik
-// Admin Blanko; penerjemah tidak lagi menyetujui siapa pun, termasuk
-// mitra yang mendaftar di bawahnya.)
+// Apakah user boleh menyetujui pendaftaran (admin atau penerjemah).
 function is_approver(?array $u): bool {
-    return (bool)$u && !empty($u['is_admin']);
+    return (bool)$u && (!empty($u['is_admin']) || $u['role'] === 'penerjemah');
 }
 
-// Apakah $u boleh menyetujui $t: hanya admin, untuk semua pendaftar.
+// Apakah $u boleh menyetujui $t: admin boleh semua; penerjemah hanya
+// mitra yang mendaftar di bawahnya (penerjemah_id == id penyetuju).
 function can_approve(array $u, array $t): bool {
-    return !empty($u['is_admin']);
+    if (!empty($u['is_admin'])) return true;
+    return $u['role'] === 'penerjemah'
+        && $t['role'] === 'mitra'
+        && (int)($t['penerjemah_id'] ?? 0) === (int)$u['id'];
 }
 
 // Field profil penerjemah yang masih kurang untuk aktivasi.
