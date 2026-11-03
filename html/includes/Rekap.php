@@ -61,6 +61,32 @@ function rekap_klien_label($tipe, $nilai): string {
     return $v === '' ? '-' : $v;
 }
 
+
+/**
+ * Daftar kekurangan baris rekap terhadap isi reportorium Pasal 17 ayat (3)
+ * huruf a Permenkum 4/2025. Kode: register, jenis, halaman, klien, identitas
+ * (identitas = klien masih berupa kategori, belum nama pengguna jasa).
+ */
+function rekap_kurang(array $r): array {
+    $k = [];
+    if (trim((string)($r['reg_no'] ?? '')) === '') $k[] = 'register';
+    if (trim((string)($r['jenis'] ?? '')) === '') $k[] = 'jenis';
+    if (($r['halaman'] ?? null) === null) $k[] = 'halaman';
+    if (trim((string)($r['klien'] ?? '')) === '') $k[] = 'klien';
+    elseif (($r['klien_tipe'] ?? 'kategori') === 'kategori') $k[] = 'identitas';
+    return $k;
+}
+
+/** Saran nomor register format Blanko, dihitung dari tanggal approve. */
+function rekap_reg_saran(string $mitraName, int $docId, string $reviewedAt): string {
+    $rom = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+    $first = explode(' ', trim($mitraName))[0] ?? 'XX';
+    $short = substr(strtoupper(preg_replace('/[^A-Z]/i', '', $first)), 0, 3);
+    $y = substr($reviewedAt, 0, 4);
+    $m = max(1, min(12, (int)substr($reviewedAt, 5, 2)));
+    return $y . '-' . $rom[$m - 1] . '-RDW-' . $short . '-TRJ-' . $docId;
+}
+
 /**
  * Baris rekap RESMI pada rentang tanggal [from, to] (inklusif) milik
  * penerjemah $penId: dokumen approved (reviewed_by = penerjemah) digabung
@@ -69,10 +95,10 @@ function rekap_klien_label($tipe, $nilai): string {
 function rekap_rows(PDO $db, int $penId, string $from, string $to, string $arahDefault): array {
     $rows = [];
     $st = $db->prepare(
-        "SELECT id, title, jenis_dokumen, halaman, klien_tipe, klien, reviewed_at
-         FROM documents
-         WHERE status = 'approved' AND reviewed_by = ? AND date(reviewed_at) BETWEEN ? AND ?
-         ORDER BY reviewed_at"
+        "SELECT d.id, d.title, d.jenis_dokumen, d.halaman_sumber, d.klien_tipe, d.klien, d.reg_no, d.reviewed_at, u.name AS mitra_name
+         FROM documents d JOIN users u ON u.id = d.user_id
+         WHERE d.status = 'approved' AND d.reviewed_by = ? AND date(d.reviewed_at) BETWEEN ? AND ?
+         ORDER BY d.reviewed_at"
     );
     $st->execute([$penId, $from, $to]);
     foreach ($st->fetchAll() as $d) {
@@ -81,16 +107,19 @@ function rekap_rows(PDO $db, int $penId, string $from, string $to, string $arahD
             'judul' => $d['title'],
             'jenis' => $d['jenis_dokumen'],
             'arah' => $arahDefault,
-            'halaman' => $d['halaman'] !== null ? (int)$d['halaman'] : null,
+            'halaman' => $d['halaman_sumber'] !== null ? (int)$d['halaman_sumber'] : null,
+            'reg_no' => $d['reg_no'] ?? '',
             'klien_tipe' => $d['klien_tipe'] ?: 'kategori',
             'klien' => $d['klien'],
             'sumber' => 'Blanko',
             'doc_id' => (int)$d['id'],
             'entry_id' => null,
         ];
+        $rows[count($rows) - 1]['reg_saran'] = rekap_reg_saran((string)($d['mitra_name'] ?? ''), (int)$d['id'], (string)$d['reviewed_at']);
+        $rows[count($rows) - 1]['kurang'] = rekap_kurang($rows[count($rows) - 1]);
     }
     $st = $db->prepare(
-        "SELECT id, tanggal, judul, jenis_dokumen, arah_bahasa, halaman, klien_tipe, klien
+        "SELECT id, tanggal, judul, jenis_dokumen, arah_bahasa, halaman, reg_no, klien_tipe, klien, catatan
          FROM work_entries
          WHERE penerjemah_id = ? AND jenis_catatan = 'rekap' AND tanggal BETWEEN ? AND ?
          ORDER BY tanggal"
@@ -103,12 +132,16 @@ function rekap_rows(PDO $db, int $penId, string $from, string $to, string $arahD
             'jenis' => $w['jenis_dokumen'],
             'arah' => $w['arah_bahasa'],
             'halaman' => $w['halaman'] !== null ? (int)$w['halaman'] : null,
+            'reg_no' => $w['reg_no'] ?? '',
+            'catatan' => $w['catatan'] ?? '',
             'klien_tipe' => $w['klien_tipe'] ?: 'kategori',
             'klien' => $w['klien'],
             'sumber' => 'Manual',
             'doc_id' => null,
             'entry_id' => (int)$w['id'],
         ];
+        $rows[count($rows) - 1]['reg_saran'] = '';
+        $rows[count($rows) - 1]['kurang'] = rekap_kurang($rows[count($rows) - 1]);
     }
     usort($rows, static fn($a, $b) => strcmp($a['tanggal'], $b['tanggal']));
     return $rows;
@@ -222,7 +255,7 @@ function rekap_resolve_range(array $prof, array $get): array {
     return [$year . '-01-01', $year . '-12-31', 'kalender', 'Tahun ' . $year];
 }
 
-/** Jumlah halaman berkas hasil: PDF dihitung via qpdf; gambar = 1. */
+/** Jumlah halaman sebuah berkas: PDF dihitung via qpdf; berkas lain (gambar) = 1. Dipakai untuk halaman teks sumber maupun hasil. */
 function rekap_pdf_pages(string $path): ?int {
     if (!is_file($path)) return null;
     if (!str_ends_with(strtolower($path), '.pdf')) return 1;

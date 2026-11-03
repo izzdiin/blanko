@@ -51,21 +51,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $arah = mb_substr(trim((string)($_POST['arah_bahasa'] ?? '')), 0, 120);
         $hal = trim((string)($_POST['halaman'] ?? ''));
         $halaman = $hal === '' ? null : max(0, (int)$hal);
+        $regNo = mb_substr(trim((string)($_POST['reg_no'] ?? '')), 0, 100);
         [$kTipe, $kVal] = rekap_klien_from_post($_POST);
         $catatan = mb_substr(trim((string)($_POST['catatan'] ?? '')), 0, 500);
         if ($tanggal === null) flash('Tanggal pekerjaan wajib diisi dengan benar.', 'err');
         elseif ($judul === '') flash('Judul pekerjaan wajib diisi.', 'err');
         elseif ($id > 0) {
             $db->prepare(
-                "UPDATE work_entries SET tanggal=?, judul=?, jenis_dokumen=?, arah_bahasa=?, halaman=?, klien_tipe=?, klien=?, catatan=?, updated_at=datetime('now')
+                "UPDATE work_entries SET tanggal=?, judul=?, jenis_dokumen=?, arah_bahasa=?, halaman=?, reg_no=?, klien_tipe=?, klien=?, catatan=?, updated_at=datetime('now')
                  WHERE id=? AND penerjemah_id=? AND jenis_catatan='rekap'"
-            )->execute([$tanggal, $judul, $jenis, $arah, $halaman, $kTipe, $kVal, $catatan, $id, $u['id']]);
+            )->execute([$tanggal, $judul, $jenis, $arah, $halaman, $regNo, $kTipe, $kVal, $catatan, $id, $u['id']]);
             flash('Entri rekap diperbarui.');
         } else {
             $db->prepare(
-                "INSERT INTO work_entries (penerjemah_id, created_by, jenis_catatan, tanggal, judul, jenis_dokumen, arah_bahasa, halaman, klien_tipe, klien, catatan)
-                 VALUES (?,?, 'rekap', ?,?,?,?,?,?,?,?)"
-            )->execute([$u['id'], $u['id'], $tanggal, $judul, $jenis, $arah, $halaman, $kTipe, $kVal, $catatan]);
+                "INSERT INTO work_entries (penerjemah_id, created_by, jenis_catatan, tanggal, judul, jenis_dokumen, arah_bahasa, halaman, reg_no, klien_tipe, klien, catatan)
+                 VALUES (?,?, 'rekap', ?,?,?,?,?,?,?,?,?)"
+            )->execute([$u['id'], $u['id'], $tanggal, $judul, $jenis, $arah, $halaman, $regNo, $kTipe, $kVal, $catatan]);
             flash('Entri rekap ditambahkan.');
         }
         redirect($backUrl);
@@ -82,13 +83,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($do === 'doc_save') {
         $docId = (int)($_POST['doc_id'] ?? 0);
         $jenis = rekap_jenis_clean($_POST['jenis_dokumen'] ?? '');
-        $hal = trim((string)($_POST['halaman'] ?? ''));
-        $halaman = $hal === '' ? null : max(0, (int)$hal);
+        $hal = trim((string)($_POST['halaman_sumber'] ?? ''));
+        $halamanSumber = $hal === '' ? null : max(0, (int)$hal);
+        $regNo = mb_substr(trim((string)($_POST['reg_no'] ?? '')), 0, 100);
         [$kTipe, $kVal] = rekap_klien_from_post($_POST);
         $db->prepare(
-            "UPDATE documents SET jenis_dokumen=?, halaman=?, klien_tipe=?, klien=?
+            "UPDATE documents SET jenis_dokumen=?, halaman_sumber=?, reg_no=?, klien_tipe=?, klien=?
              WHERE id=? AND reviewed_by=? AND status='approved'"
-        )->execute([$jenis, $halaman, $kTipe, $kVal, $docId, $u['id']]);
+        )->execute([$jenis, $halamanSumber, $regNo, $kTipe, $kVal, $docId, $u['id']]);
         flash('Data rekap dokumen diperbarui.');
         redirect($backUrl);
     }
@@ -100,9 +102,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $w = $q->fetch();
         if ($w) {
             $db->prepare(
-                "INSERT INTO work_entries (penerjemah_id, created_by, jenis_catatan, tanggal, judul, jenis_dokumen, arah_bahasa, halaman, klien_tipe, klien, catatan)
-                 VALUES (?,?, 'rekap', ?,?,?,?,?,?,?,?)"
-            )->execute([$u['id'], $u['id'], $w['tanggal'], $w['judul'], $w['jenis_dokumen'], $w['arah_bahasa'], $w['halaman'], $w['klien_tipe'], $w['klien'], $w['catatan']]);
+                "INSERT INTO work_entries (penerjemah_id, created_by, jenis_catatan, tanggal, judul, jenis_dokumen, arah_bahasa, halaman, reg_no, klien_tipe, klien, catatan)
+                 VALUES (?,?, 'rekap', ?,?,?,?,?,?,?,?,?)"
+            )->execute([$u['id'], $u['id'], $w['tanggal'], $w['judul'], $w['jenis_dokumen'], $w['arah_bahasa'], $w['halaman'], $w['reg_no'] ?? null, $w['klien_tipe'], $w['klien'], $w['catatan']]);
             flash('Catatan mitra disalin menjadi entri rekap resmi Anda.');
         }
         redirect($backUrl);
@@ -129,7 +131,7 @@ $aggArah = []; $aggJenis = [];
 foreach ($rows as $r) {
     if ($r['halaman'] !== null) $totHalaman += $r['halaman'];
     if ($r['sumber'] === 'Blanko') $nBlanko++; else $nManual++;
-    if (empty($r['jenis']) || $r['halaman'] === null) $belumLengkap[] = $r;
+    if (!empty($r['kurang'])) $belumLengkap[] = $r;
     $a = trim((string)$r['arah']) !== '' ? $r['arah'] : '-';
     $aggArah[$a] = ($aggArah[$a] ?? 0) + 1;
     $j = !empty($r['jenis']) ? $r['jenis'] : '(belum diisi)';
@@ -244,7 +246,7 @@ ob_start(); ?>
 
   <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
     <div class="bg-white rounded-3xl shadow-sm p-4"><div class="text-2xl font-bold"><?= $totPekerjaan ?></div><div class="text-xs text-slate-400 mt-0.5">Total pekerjaan</div></div>
-    <div class="bg-white rounded-3xl shadow-sm p-4"><div class="text-2xl font-bold"><?= number_format($totHalaman, 0, ',', '.') ?></div><div class="text-xs text-slate-400 mt-0.5">Total halaman hasil</div></div>
+    <div class="bg-white rounded-3xl shadow-sm p-4"><div class="text-2xl font-bold"><?= number_format($totHalaman, 0, ',', '.') ?></div><div class="text-xs text-slate-400 mt-0.5">Total halaman teks sumber</div></div>
     <div class="bg-white rounded-3xl shadow-sm p-4"><div class="text-2xl font-bold"><?= $nBlanko ?></div><div class="text-xs text-slate-400 mt-0.5">Dari Blanko</div></div>
     <div class="bg-white rounded-3xl shadow-sm p-4"><div class="text-2xl font-bold"><?= $nManual ?></div><div class="text-xs text-slate-400 mt-0.5">Entri manual</div></div>
   </div>
@@ -259,18 +261,31 @@ ob_start(); ?>
   <?php if ($belumLengkap): ?>
   <div class="bg-amber-50 border border-amber-200 rounded-3xl p-6 mb-5">
     <h2 class="font-bold text-amber-900">Perlu dilengkapi (<?= count($belumLengkap) ?>)</h2>
-    <p class="text-sm text-amber-800 mt-1 mb-4">Jenis dokumen atau halaman masih kosong. Rekap tetap bisa diekspor, tetapi PDF akan mencatat jumlah data yang belum lengkap ini.</p>
+    <p class="text-sm text-amber-800 mt-1 mb-4">Sebagian unsur reportorium (Pasal 17 ayat (3) Permenkum 4/2025) masih kurang pada baris berikut. Rekap tetap bisa diekspor; PDF akan mencatat kekurangannya.</p>
+    <?php $labelKurang = ['register' => 'nomor register', 'jenis' => 'jenis dokumen', 'halaman' => 'halaman teks sumber', 'klien' => 'identitas pengguna jasa', 'identitas' => 'identitas masih kategori, belum nama']; ?>
     <?php foreach ($belumLengkap as $r): ?>
     <form method="post" class="bg-white rounded-2xl p-4 mb-3 grid sm:grid-cols-4 gap-3 items-end">
       <?= csrf_field() ?>
+      <?php if ($r['doc_id']): ?>
       <input type="hidden" name="do" value="doc_save">
       <input type="hidden" name="doc_id" value="<?= (int)$r['doc_id'] ?>">
-      <div class="sm:col-span-4 text-sm"><b><?= e($r['judul']) ?></b> <span class="text-slate-400">— <?= e(rekap_fmt_tanggal($r['tanggal'])) ?></span></div>
+      <?php else: ?>
+      <input type="hidden" name="do" value="entry_save">
+      <input type="hidden" name="entry_id" value="<?= (int)$r['entry_id'] ?>">
+      <input type="hidden" name="tanggal" value="<?= e($r['tanggal']) ?>">
+      <input type="hidden" name="judul" value="<?= e($r['judul']) ?>">
+      <input type="hidden" name="arah_bahasa" value="<?= e($r['arah'] ?? '') ?>">
+      <input type="hidden" name="catatan" value="<?= e($r['catatan'] ?? '') ?>">
+      <?php endif; ?>
+      <div class="sm:col-span-4 text-sm"><b><?= e($r['judul']) ?></b> <span class="text-slate-400">— <?= e(rekap_fmt_tanggal($r['tanggal'])) ?></span>
+        <div class="text-xs text-amber-700 mt-0.5">Kurang: <?= e(implode(', ', array_map(static fn($c) => $labelKurang[$c] ?? $c, $r['kurang']))) ?></div></div>
       <div><label class="block text-xs font-medium mb-1">Jenis dokumen</label>
         <input type="text" name="jenis_dokumen" list="rk-jenis-list" maxlength="100" value="<?= e($r['jenis'] ?? '') ?>" class="w-full h-11 bg-slate-50 border-0 rounded-xl px-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></div>
-      <div><label class="block text-xs font-medium mb-1">Halaman hasil</label>
-        <input type="number" name="halaman" min="0" value="<?= $r['halaman'] !== null ? (int)$r['halaman'] : '' ?>" class="w-full h-11 bg-slate-50 border-0 rounded-xl px-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></div>
-      <div><label class="block text-xs font-medium mb-1">Klien</label>
+      <div><label class="block text-xs font-medium mb-1">Nomor register</label>
+        <input type="text" name="reg_no" maxlength="100" value="<?= e($r['reg_no'] ?: ($r['reg_saran'] ?? '')) ?>" class="w-full h-11 bg-slate-50 border-0 rounded-xl px-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></div>
+      <div><label class="block text-xs font-medium mb-1">Halaman teks sumber</label>
+        <input type="number" name="<?= $r['doc_id'] ? 'halaman_sumber' : 'halaman' ?>" min="0" value="<?= $r['halaman'] !== null ? (int)$r['halaman'] : '' ?>" class="w-full h-11 bg-slate-50 border-0 rounded-xl px-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></div>
+      <div><label class="block text-xs font-medium mb-1">Identitas pengguna jasa</label>
         <input type="hidden" name="klien_tipe" value="<?= e($r['klien_tipe']) ?>">
         <?php if ($r['klien_tipe'] === 'nama'): ?>
         <input type="text" name="klien_nama" maxlength="150" value="<?= e($r['klien'] ?? '') ?>" class="w-full h-11 bg-slate-50 border-0 rounded-xl px-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
@@ -318,7 +333,7 @@ ob_start(); ?>
     </div>
   </div>
 
-  <div class="bg-white rounded-3xl shadow-sm p-6 mb-5">
+  <div class="bg-white rounded-3xl shadow-sm p-6 mb-5" x-data="{edit:0}">
     <h2 class="font-bold mb-4">Rincian pekerjaan tercatat</h2>
     <?php if (!$rows): ?>
     <p class="text-sm text-slate-400">Belum ada pekerjaan tercatat pada periode ini. Dokumen yang Anda setujui di Blanko akan muncul otomatis di sini.</p>
@@ -326,24 +341,26 @@ ob_start(); ?>
     <div class="overflow-x-auto">
     <table class="w-full text-sm">
       <thead><tr class="text-left text-slate-400 border-b">
-        <th class="py-2 pr-3 font-medium">Tanggal</th><th class="py-2 pr-3 font-medium">Judul</th>
+        <th class="py-2 pr-3 font-medium">Tanggal</th><th class="py-2 pr-3 font-medium">No. Register</th><th class="py-2 pr-3 font-medium">Judul</th>
         <th class="py-2 pr-3 font-medium">Jenis</th><th class="py-2 pr-3 font-medium">Arah</th>
-        <th class="py-2 pr-3 font-medium text-right">Hal.</th><th class="py-2 pr-3 font-medium">Klien</th>
+        <th class="py-2 pr-3 font-medium text-right">Hal. Sumber</th><th class="py-2 pr-3 font-medium">Identitas Pengguna Jasa</th>
         <th class="py-2 pr-3 font-medium">Sumber</th><th class="py-2 font-medium"></th>
       </tr></thead>
       <tbody>
       <?php foreach ($rows as $r): ?>
       <tr class="border-b border-slate-50 last:border-0 align-top">
         <td class="py-2 pr-3 whitespace-nowrap"><?= e(rekap_fmt_tanggal($r['tanggal'])) ?></td>
+        <td class="py-2 pr-3 whitespace-nowrap"><?= e($r['reg_no'] ?: '-') ?></td>
         <td class="py-2 pr-3"><?= e($r['judul']) ?></td>
         <td class="py-2 pr-3"><?= e($r['jenis'] ?: '-') ?></td>
         <td class="py-2 pr-3"><?= e($r['arah'] ?: '-') ?></td>
         <td class="py-2 pr-3 text-right"><?= $r['halaman'] !== null ? (int)$r['halaman'] : '-' ?></td>
-        <td class="py-2 pr-3"><?= e(rekap_klien_label($r['klien_tipe'], $r['klien'])) ?></td>
+        <td class="py-2 pr-3"><?= e(rekap_klien_label($r['klien_tipe'], $r['klien'])) ?><?php if ($r['klien_tipe'] === 'kategori' && trim((string)$r['klien']) !== ''): ?> <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-medium">kategori</span><?php endif; ?></td>
         <td class="py-2 pr-3"><span class="px-2 py-0.5 rounded-full text-xs <?= $r['sumber'] === 'Blanko' ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-600' ?>"><?= e($r['sumber']) ?></span></td>
         <td class="py-2 whitespace-nowrap text-right">
           <?php if ($r['doc_id']): ?>
           <a href="?page=preview&id=<?= (int)$r['doc_id'] ?>" class="text-indigo-600 text-xs font-medium">Buka</a>
+          <button type="button" @click="edit = edit === <?= (int)$r['doc_id'] ?> ? 0 : <?= (int)$r['doc_id'] ?>" class="text-indigo-600 text-xs font-medium ml-2">Ubah</button>
           <?php else: ?>
           <a href="?page=rekap&edit=<?= (int)$r['entry_id'] ?>&<?= $exportQs ?>#form-entri" class="text-indigo-600 text-xs font-medium">Ubah</a>
           <form method="post" class="inline" onsubmit="return confirm('Hapus entri ini?')">
@@ -355,6 +372,37 @@ ob_start(); ?>
           <?php endif; ?>
         </td>
       </tr>
+      <?php if ($r['doc_id']): ?>
+      <tr x-show="edit === <?= (int)$r['doc_id'] ?>" class="border-b border-slate-100 bg-slate-50/70">
+        <td colspan="9" class="py-3 px-3">
+          <form method="post" class="grid sm:grid-cols-4 gap-3 items-end">
+            <?= csrf_field() ?>
+            <input type="hidden" name="do" value="doc_save">
+            <input type="hidden" name="doc_id" value="<?= (int)$r['doc_id'] ?>">
+            <div><label class="block text-xs font-medium mb-1">Nomor register</label>
+              <input type="text" name="reg_no" maxlength="100" value="<?= e($r['reg_no'] ?: ($r['reg_saran'] ?? '')) ?>" class="w-full h-11 bg-white border-0 rounded-xl px-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></div>
+            <div><label class="block text-xs font-medium mb-1">Jenis dokumen</label>
+              <input type="text" name="jenis_dokumen" list="rk-jenis-list" maxlength="100" value="<?= e($r['jenis'] ?? '') ?>" class="w-full h-11 bg-white border-0 rounded-xl px-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></div>
+            <div><label class="block text-xs font-medium mb-1">Halaman teks sumber</label>
+              <input type="number" name="halaman_sumber" min="0" value="<?= $r['halaman'] !== null ? (int)$r['halaman'] : '' ?>" class="w-full h-11 bg-white border-0 rounded-xl px-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></div>
+            <div><label class="block text-xs font-medium mb-1">Identitas pengguna jasa</label>
+              <input type="hidden" name="klien_tipe" value="<?= e($r['klien_tipe']) ?>">
+              <?php if ($r['klien_tipe'] === 'nama'): ?>
+              <input type="text" name="klien_nama" maxlength="150" value="<?= e($r['klien'] ?? '') ?>" class="w-full h-11 bg-white border-0 rounded-xl px-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+              <?php else: ?>
+              <select name="klien_kategori" class="w-full h-11 bg-white border-0 rounded-xl px-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                <option value="">— kategori —</option>
+                <?php foreach (REKAP_KATEGORI as $k): ?>
+                <option value="<?= e($k) ?>" <?= ($r['klien'] ?? '') === $k ? 'selected' : '' ?>><?= e($k) ?></option>
+                <?php endforeach; ?>
+              </select>
+              <?php endif; ?>
+            </div>
+            <button class="h-11 px-4 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-500">Simpan</button>
+          </form>
+        </td>
+      </tr>
+      <?php endif; ?>
       <?php endforeach; ?>
       </tbody>
     </table>
@@ -387,8 +435,10 @@ ob_start(); ?>
           <option value="<?= e($a) ?>"></option>
           <?php endforeach; ?>
         </datalist></div>
-      <div><label class="block text-sm font-medium mb-1.5">Halaman hasil</label>
+      <div><label class="block text-sm font-medium mb-1.5">Halaman teks sumber</label>
         <input type="number" name="halaman" min="0" value="<?= isset($editEntry['halaman']) && $editEntry['halaman'] !== null ? (int)$editEntry['halaman'] : '' ?>" class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none"></div>
+      <div><label class="block text-sm font-medium mb-1.5">Nomor register <span class="text-slate-400 font-normal">(opsional — format Anda sendiri)</span></label>
+        <input type="text" name="reg_no" maxlength="100" value="<?= e($editEntry['reg_no'] ?? '') ?>" class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="cth: 045/REG/2026"></div>
       <div>
         <label class="block text-sm font-medium mb-1.5">Klien</label>
         <div class="flex gap-4 mb-2 text-sm">

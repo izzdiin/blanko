@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS documents (
   template_id INTEGER,
   jenis_dokumen TEXT,
   halaman INTEGER,
+  reg_no TEXT,
+  halaman_sumber INTEGER,
   klien_tipe TEXT NOT NULL DEFAULT 'kategori',
   klien TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -104,6 +106,7 @@ CREATE TABLE IF NOT EXISTS work_entries (
   jenis_dokumen TEXT,
   arah_bahasa TEXT NOT NULL DEFAULT '',
   halaman INTEGER,
+  reg_no TEXT,
   klien_tipe TEXT NOT NULL DEFAULT 'kategori',
   klien TEXT,
   catatan TEXT DEFAULT '',

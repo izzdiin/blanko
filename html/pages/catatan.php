@@ -117,7 +117,7 @@ ob_start(); ?>
         </datalist></div>
       <div><label class="block text-sm font-medium mb-1.5">Arah bahasa</label>
         <input type="text" name="arah_bahasa" maxlength="120" value="<?= e($editNote['arah_bahasa'] ?? '') ?>" class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="cth: Bahasa Indonesia ke Bahasa Inggris"></div>
-      <div><label class="block text-sm font-medium mb-1.5">Halaman hasil</label>
+      <div><label class="block text-sm font-medium mb-1.5">Halaman teks sumber</label>
         <input type="number" name="halaman" min="0" value="<?= isset($editNote['halaman']) && $editNote['halaman'] !== null ? (int)$editNote['halaman'] : '' ?>" class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none"></div>
       <div>
         <label class="block text-sm font-medium mb-1.5">Klien</label>

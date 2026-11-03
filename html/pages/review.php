@@ -189,9 +189,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if ($final !== '') {
                 $stampedName = basename($final);
-                // Rekap tahunan: halaman hasil dihitung dari berkas final;
-                // jenis & klien dapat disesuaikan penerjemah pada form review.
+                // Rekap tahunan: halaman hasil dari berkas final (kolom lama);
+                // halaman TEKS SUMBER dari berkas asli unggahan mitra (Pasal 17
+                // ayat (3) Permenkum 4/2025); nomor register dari form review
+                // (boleh format penerjemah sendiri) atau bawaan Blanko.
                 $halaman = rekap_pdf_pages($final);
+                $halamanSumber = rekap_pdf_pages($src);
+                $mShort = strtoupper(preg_replace('/[^A-Z]/i', '', explode(' ', (string)($d['mitra_name'] ?? 'XX'))[0] ?? 'XX'));
+                $regIn = trim((string)($_POST['rk_reg_no'] ?? ''));
+                $regSimpan = $regIn !== '' ? mb_substr($regIn, 0, 100) : reg_number($docId, substr($mShort, 0, 3), 'TRJ');
                 $jenisDok = array_key_exists('rk_jenis', $_POST)
                     ? rekap_jenis_clean($_POST['rk_jenis'])
                     : ($d['jenis_dokumen'] ?? null);
@@ -202,9 +208,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $klienVal = $d['klien'] ?? null;
                 }
                 $up = db()->prepare(
-                    "UPDATE documents SET status='approved', reviewed_by=?, reviewed_at=datetime('now'), stamped_name=?, template_id=?, jenis_dokumen=?, halaman=?, klien_tipe=?, klien=? WHERE id=?"
+                    "UPDATE documents SET status='approved', reviewed_by=?, reviewed_at=datetime('now'), stamped_name=?, template_id=?, jenis_dokumen=?, halaman=?, reg_no=?, halaman_sumber=?, klien_tipe=?, klien=? WHERE id=?"
                 );
-                $up->execute([$reviewer, $stampedName, $tplId ?: null, $jenisDok, $halaman, $klienTipe, $klienVal, $docId]);
+                $up->execute([$reviewer, $stampedName, $tplId ?: null, $jenisDok, $halaman, $regSimpan, $halamanSumber, $klienTipe, $klienVal, $docId]);
                 $msg = "Blanko: Dokumen disetujui.\nJudul: {$d['title']}\n"
                      . "Unduh: " . app_url('?page=download&id=' . $docId);
                 if ($d['mitra_phone']) notify_wa((int)$d['mitra_id'], $d['mitra_phone'], $msg);
@@ -347,7 +353,7 @@ ob_start(); ?>
         </script>
         <div class="border-t pt-4" x-data="{mode:'<?= ($d['klien_tipe'] ?? 'kategori') === 'nama' ? 'nama' : 'kategori' ?>'}">
           <p class="text-sm font-medium">Data rekap tahunan</p>
-          <p class="text-xs text-slate-500 mt-1">Jenis dan klien dari mitra dapat disesuaikan sebelum disetujui. Jumlah halaman hasil dihitung otomatis saat approve.</p>
+          <p class="text-xs text-slate-500 mt-1">Jenis, nomor register, dan klien dapat disesuaikan sebelum disetujui. Jumlah halaman teks sumber dihitung otomatis dari berkas asli saat approve.</p>
           <div class="mt-3 space-y-3">
             <div>
               <label class="block text-sm font-medium mb-1.5">Jenis dokumen</label>
@@ -358,6 +364,12 @@ ob_start(); ?>
                 <option value="<?= e($j) ?>"></option>
                 <?php endforeach; ?>
               </datalist>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1.5">Nomor register (reportorium)</label>
+              <input type="text" name="rk_reg_no" maxlength="100" value="<?= e($d['reg_no'] ?? '') ?: e($attRegNo) ?>"
+                     class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none">
+              <p class="text-xs text-slate-400 mt-1">Terisi format bawaan Blanko. Boleh diganti dengan format nomor register Anda sendiri — yang tersimpan adalah yang tertulis di sini.</p>
             </div>
             <div>
               <label class="block text-sm font-medium mb-1.5">Klien</label>

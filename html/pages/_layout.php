@@ -139,32 +139,32 @@ if ($u && (!empty($u['is_admin']) || $u['role'] === 'penerjemah')) {
 <?php if ($u): ?>
 <!-- Bottom tab bar (mobile) -->
 <nav class="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 pb-safe">
-  <div class="grid grid-cols-5 text-center">
-    <a href="?page=dashboard" class="py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='dashboard' ? 'tab-active' : 'text-slate-400' ?>">
+  <div class="flex text-center">
+    <a href="?page=dashboard" class="flex-1 py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='dashboard' ? 'tab-active' : 'text-slate-400' ?>">
       <i class="fa-solid fa-house text-lg"></i>Beranda<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
     </a>
     <?php if ($isPenerjemah): ?>
-    <a href="?page=templates" class="py-2.5 flex flex-col items-center gap-1 text-xs <?= in_array($page, ['templates','template_edit']) ? 'tab-active' : 'text-slate-400' ?>">
+    <a href="?page=templates" class="flex-1 py-2.5 flex flex-col items-center gap-1 text-xs <?= in_array($page, ['templates','template_edit']) ? 'tab-active' : 'text-slate-400' ?>">
       <i class="fa-solid fa-layer-group text-lg"></i>Template<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
     </a>
     <?php else: ?>
-    <a href="?page=upload" class="py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='upload' ? 'tab-active' : 'text-slate-400' ?>">
+    <a href="?page=upload" class="flex-1 py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='upload' ? 'tab-active' : 'text-slate-400' ?>">
       <i class="fa-solid fa-cloud-arrow-up text-lg"></i>Upload<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
     </a>
     <?php endif; ?>
     <?php if ($isPenerjemah): ?>
-    <a href="?page=rekap" class="py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='rekap' ? 'tab-active' : 'text-slate-400' ?>">
+    <a href="?page=rekap" class="flex-1 py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='rekap' ? 'tab-active' : 'text-slate-400' ?>">
       <i class="fa-solid fa-chart-column text-lg"></i>Rekap<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
     </a>
     <?php else: ?>
-    <a href="?page=catatan" class="py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='catatan' ? 'tab-active' : 'text-slate-400' ?>">
+    <a href="?page=catatan" class="flex-1 py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='catatan' ? 'tab-active' : 'text-slate-400' ?>">
       <i class="fa-solid fa-clipboard-list text-lg"></i>Catatan<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
     </a>
     <?php endif; ?>
-    <a href="?page=settings" class="py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='settings' ? 'tab-active' : 'text-slate-400' ?>">
+    <a href="?page=settings" class="flex-1 py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='settings' ? 'tab-active' : 'text-slate-400' ?>">
       <i class="fa-solid fa-user text-lg"></i>Profil<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
     </a>
-    <a href="?page=logout" class="py-2.5 flex flex-col items-center gap-1 text-xs text-slate-400">
+    <a href="?page=logout" class="flex-1 py-2.5 flex flex-col items-center gap-1 text-xs text-slate-400">
       <i class="fa-solid fa-right-from-bracket text-lg"></i>Keluar<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
     </a>
   </div>
