@@ -6,23 +6,84 @@ $u = require_login();
 $isPen = $u['role'] === 'penerjemah';
 
 if (!$isPen) {
-    // mitra: tampilkan info akun sederhana
+    // Akun non-penerjemah (admin/mitra): nama, email, telepon, dan kata
+    // sandi bisa diubah sendiri dari sini.
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['account_save'])) {
+        csrf_check();
+        $nm = trim($_POST['name'] ?? '');
+        $em = trim($_POST['email'] ?? '');
+        $ph = trim($_POST['phone'] ?? '');
+        $dup = db()->prepare('SELECT COUNT(*) FROM users WHERE email = ? AND id != ?');
+        $dup->execute([$em, (int)$u['id']]);
+        if ($nm === '') { flash('Nama wajib diisi.', 'err'); }
+        elseif (!filter_var($em, FILTER_VALIDATE_EMAIL)) { flash('Format email tidak valid.', 'err'); }
+        elseif ((int)$dup->fetchColumn() > 0) { flash('Email sudah dipakai akun lain.', 'err'); }
+        else {
+            db()->prepare('UPDATE users SET name = ?, email = ?, phone = ? WHERE id = ?')
+                ->execute([$nm, $em, $ph, (int)$u['id']]);
+            flash('Data akun tersimpan.');
+        }
+        redirect('?page=settings');
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['password_save'])) {
+        csrf_check();
+        $cur = (string)($_POST['password_current'] ?? '');
+        $newPw = (string)($_POST['password_new'] ?? '');
+        $cfm = (string)($_POST['password_confirm'] ?? '');
+        $hq = db()->prepare('SELECT password_hash FROM users WHERE id = ?');
+        $hq->execute([(int)$u['id']]);
+        if (!password_verify($cur, (string)$hq->fetchColumn())) { flash('Kata sandi saat ini salah.', 'err'); }
+        elseif (strlen($newPw) < 8) { flash('Kata sandi baru minimal 8 karakter.', 'err'); }
+        elseif ($newPw !== $cfm) { flash('Konfirmasi kata sandi baru tidak cocok.', 'err'); }
+        else {
+            db()->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+                ->execute([password_hash($newPw, PASSWORD_DEFAULT), (int)$u['id']]);
+            flash('Kata sandi berhasil diubah.');
+        }
+        redirect('?page=settings');
+    }
+    $mq = db()->prepare('SELECT * FROM users WHERE id = ?');
+    $mq->execute([(int)$u['id']]);
+    $me = $mq->fetch();
     ob_start(); ?>
     <div class="max-w-md mx-auto">
       <h1 class="text-2xl font-bold tracking-tight mb-5">Profil</h1>
-      <div class="bg-white rounded-3xl shadow-sm p-6">
+      <div class="bg-white rounded-3xl shadow-sm p-6 mb-5">
         <div class="flex items-center gap-4 mb-6">
-          <span class="w-16 h-16 rounded-3xl bg-indigo-100 text-indigo-700 grid place-items-center text-2xl font-bold"><?= e(mb_substr($u['name'], 0, 1)) ?></span>
+          <span class="w-16 h-16 rounded-3xl bg-indigo-100 text-indigo-700 grid place-items-center text-2xl font-bold"><?= e(mb_substr($me['name'], 0, 1)) ?></span>
           <div>
-            <div class="font-bold text-lg"><?= e($u['name']) ?></div>
-            <div class="text-sm text-slate-500"><?= e($u['email']) ?></div>
-            <div class="text-xs text-slate-400 capitalize mt-0.5"><?= e($u['role']) ?></div>
+            <div class="font-bold text-lg"><?= e($me['name']) ?></div>
+            <div class="text-sm text-slate-500"><?= e($me['email']) ?></div>
+            <div class="text-xs text-slate-400 capitalize mt-0.5"><?= e($me['role']) ?></div>
           </div>
         </div>
-        <a href="?page=logout" class="w-full h-12 rounded-2xl bg-red-50 text-red-700 font-semibold flex items-center justify-center gap-2 hover:bg-red-100">
-          <i class="fa-solid fa-right-from-bracket"></i>Keluar
-        </a>
+        <form method="post" class="space-y-3">
+          <?= csrf_field() ?>
+          <div><label class="block text-xs font-medium text-slate-500 mb-1">Nama</label>
+            <input name="name" value="<?= e($me['name']) ?>" required class="w-full h-11 rounded-xl border border-slate-200 px-3 bg-white"></div>
+          <div><label class="block text-xs font-medium text-slate-500 mb-1">Email</label>
+            <input type="email" name="email" value="<?= e($me['email']) ?>" required class="w-full h-11 rounded-xl border border-slate-200 px-3 bg-white"></div>
+          <div><label class="block text-xs font-medium text-slate-500 mb-1">No. WhatsApp</label>
+            <input name="phone" value="<?= e($me['phone'] ?? '') ?>" class="w-full h-11 rounded-xl border border-slate-200 px-3 bg-white"></div>
+          <button name="account_save" value="1" class="w-full h-11 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-500">Simpan data akun</button>
+        </form>
       </div>
+      <div class="bg-white rounded-3xl shadow-sm p-6 mb-5">
+        <h2 class="font-bold mb-4">Ganti kata sandi</h2>
+        <form method="post" class="space-y-3">
+          <?= csrf_field() ?>
+          <div><label class="block text-xs font-medium text-slate-500 mb-1">Kata sandi saat ini</label>
+            <input type="password" name="password_current" required class="w-full h-11 rounded-xl border border-slate-200 px-3 bg-white"></div>
+          <div><label class="block text-xs font-medium text-slate-500 mb-1">Kata sandi baru (min. 8 karakter)</label>
+            <input type="password" name="password_new" required class="w-full h-11 rounded-xl border border-slate-200 px-3 bg-white"></div>
+          <div><label class="block text-xs font-medium text-slate-500 mb-1">Konfirmasi kata sandi baru</label>
+            <input type="password" name="password_confirm" required class="w-full h-11 rounded-xl border border-slate-200 px-3 bg-white"></div>
+          <button name="password_save" value="1" class="w-full h-11 rounded-xl bg-slate-800 text-white font-semibold hover:bg-slate-700">Ubah kata sandi</button>
+        </form>
+      </div>
+      <a href="?page=logout" class="w-full h-12 rounded-2xl bg-red-50 text-red-700 font-semibold flex items-center justify-center gap-2 hover:bg-red-100">
+        <i class="fa-solid fa-right-from-bracket"></i>Keluar
+      </a>
     </div>
     <?php layout('Profil', ob_get_clean(), $u); return;
 }

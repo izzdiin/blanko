@@ -1,7 +1,8 @@
 <?php
 // Live preview template blanko (PNG) — POST config, return PNG
 declare(strict_types=1);
-$u = require_role('penerjemah');
+$u = require_login();
+if ($u['role'] !== 'penerjemah' && empty($u['is_admin'])) { http_response_code(403); exit('Akses ditolak.'); }
 require_once __DIR__ . '/../includes/Attestation.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); exit; }

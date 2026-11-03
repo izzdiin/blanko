@@ -3,7 +3,8 @@
 // Aksi default/hapus lewat POST (tautan GET lama tidak pernah lolos csrf_check).
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/HtmlAttestation.php';
-$u = require_role('penerjemah');
+$u = require_login();
+if ($u['role'] !== 'penerjemah' && empty($u['is_admin'])) { http_response_code(403); exit('Akses ditolak.'); }
 $uid = (int)$u['id'];
 $isAdmin = !empty($u['is_admin']);
 $id = (int)($_GET['id'] ?? 0);

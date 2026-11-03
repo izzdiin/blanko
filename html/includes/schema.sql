@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,
   phone TEXT,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK(role IN ('mitra','penerjemah')),
+  role TEXT NOT NULL CHECK(role IN ('mitra','penerjemah','admin')),
   stamp_file TEXT,
   signature_file TEXT,
   name_ar TEXT DEFAULT '',

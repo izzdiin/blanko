@@ -5,6 +5,7 @@ function layout(string $title, string $content, ?array $user = null): void {
     $u = $user ?? current_user();
     $page = $_GET['page'] ?? 'dashboard';
     $isPenerjemah = $u && $u['role'] === 'penerjemah';
+    $isAdminOnly = $u && !empty($u['is_admin']) && $u['role'] !== 'penerjemah' && $u['role'] !== 'mitra';
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -109,14 +110,14 @@ if ($u && (!empty($u['is_admin']) || $u['role'] === 'penerjemah')) {
 
   <nav class="flex flex-col gap-1">
     <a href="?page=dashboard" class="side-link<?= $page==='dashboard' ? ' active' : '' ?>"><i class="fa-solid fa-house" style="width:20px;text-align:center"></i>Beranda</a>
-    <?php if ($isPenerjemah): ?>
+    <?php if ($isPenerjemah || $isAdminOnly): ?>
     <a href="?page=templates" class="side-link<?= in_array($page, ['templates','template_edit']) ? ' active' : '' ?>"><i class="fa-solid fa-layer-group" style="width:20px;text-align:center"></i>Template</a>
     <?php else: ?>
     <a href="?page=upload" class="side-link<?= $page==='upload' ? ' active' : '' ?>"><i class="fa-solid fa-cloud-arrow-up" style="width:20px;text-align:center"></i>Upload</a>
     <?php endif; ?>
     <?php if ($isPenerjemah): ?>
     <a href="?page=rekap" class="side-link<?= $page==='rekap' ? ' active' : '' ?>"><i class="fa-solid fa-chart-column" style="width:20px;text-align:center"></i>Rekap Tahunan</a>
-    <?php else: ?>
+    <?php elseif (!$isAdminOnly): ?>
     <a href="?page=catatan" class="side-link<?= $page==='catatan' ? ' active' : '' ?>"><i class="fa-solid fa-clipboard-list" style="width:20px;text-align:center"></i>Catatan Pencocokan</a>
     <?php endif; ?>
     <a href="?page=settings" class="side-link<?= $page==='settings' ? ' active' : '' ?>"><i class="fa-solid fa-user" style="width:20px;text-align:center"></i>Profil</a>
@@ -143,7 +144,7 @@ if ($u && (!empty($u['is_admin']) || $u['role'] === 'penerjemah')) {
     <a href="?page=dashboard" class="flex-1 py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='dashboard' ? 'tab-active' : 'text-slate-400' ?>">
       <i class="fa-solid fa-house text-lg"></i>Beranda<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
     </a>
-    <?php if ($isPenerjemah): ?>
+    <?php if ($isPenerjemah || $isAdminOnly): ?>
     <a href="?page=templates" class="flex-1 py-2.5 flex flex-col items-center gap-1 text-xs <?= in_array($page, ['templates','template_edit']) ? 'tab-active' : 'text-slate-400' ?>">
       <i class="fa-solid fa-layer-group text-lg"></i>Template<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
     </a>
@@ -155,6 +156,10 @@ if ($u && (!empty($u['is_admin']) || $u['role'] === 'penerjemah')) {
     <?php if ($isPenerjemah): ?>
     <a href="?page=rekap" class="flex-1 py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='rekap' ? 'tab-active' : 'text-slate-400' ?>">
       <i class="fa-solid fa-chart-column text-lg"></i>Rekap<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
+    </a>
+    <?php elseif ($isAdminOnly): ?>
+    <a href="?page=approvals" class="flex-1 py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='approvals' ? 'tab-active' : 'text-slate-400' ?>">
+      <i class="fa-solid fa-user-check text-lg"></i>Setujui<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
     </a>
     <?php else: ?>
     <a href="?page=catatan" class="flex-1 py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='catatan' ? 'tab-active' : 'text-slate-400' ?>">

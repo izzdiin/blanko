@@ -1,7 +1,8 @@
 <?php
 // Daftar template blanko milik penerjemah (admin melihat semua + pemiliknya)
 declare(strict_types=1);
-$u = require_role('penerjemah');
+$u = require_login();
+if ($u['role'] !== 'penerjemah' && empty($u['is_admin'])) { http_response_code(403); exit('Akses ditolak.'); }
 $isAdmin = !empty($u['is_admin']);
 if ($isAdmin) {
     $tpls = db()->query('SELECT t.*, u.name AS owner_name FROM blanko_templates t LEFT JOIN users u ON u.id = t.user_id ORDER BY t.is_default DESC, t.id')->fetchAll();
