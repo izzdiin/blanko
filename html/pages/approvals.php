@@ -1,7 +1,7 @@
 <?php
-// Persetujuan pendaftaran: admin menyetujui semua pendaftar; penerjemah
-// hanya mitra yang mendaftar di bawahnya. Penerjemah yang profilnya belum
-// lengkap tidak bisa disetujui (tombol nonaktif + penegakan server).
+// Persetujuan pendaftaran: KHUSUS Admin Blanko, untuk semua pendaftar
+// (penerjemah maupun mitra). Penerjemah yang profilnya belum lengkap
+// tidak bisa disetujui (tombol nonaktif + penegakan server).
 declare(strict_types=1);
 $u = require_login();
 if (!is_approver($u)) { http_response_code(403); exit('Akses ditolak.'); }
@@ -32,17 +32,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $cols = "u.id, u.name, u.email, u.phone, u.role, u.status, u.penerjemah_id, u.lang_pair, u.lang_reverse, u.sk, u.name_ar, u.name_zh, u.created_at, (SELECT name FROM users p WHERE p.id = u.penerjemah_id) AS pen_name";
-if (!empty($u['is_admin'])) {
-    $rows = db()->query("SELECT $cols FROM users u WHERE u.status='pending' ORDER BY u.created_at")->fetchAll();
-} else {
-    $st = db()->prepare("SELECT $cols FROM users u WHERE u.status='pending' AND u.role='mitra' AND u.penerjemah_id=? ORDER BY u.created_at");
-    $st->execute([$u['id']]);
-    $rows = $st->fetchAll();
-}
+$rows = db()->query("SELECT $cols FROM users u WHERE u.status='pending' ORDER BY u.created_at")->fetchAll();
 ob_start(); ?>
 <div class="max-w-2xl mx-auto">
   <h1 class="text-2xl font-bold tracking-tight mb-1">Persetujuan pendaftaran</h1>
-  <p class="text-sm text-slate-500 mb-5"><?= !empty($u['is_admin']) ? 'Sebagai admin, kamu menyetujui pendaftar penerjemah dan mitra.' : 'Kamu menyetujui mitra yang mendaftar di bawahmu.' ?></p>
+  <p class="text-sm text-slate-500 mb-5">Sebagai admin, kamu menyetujui pendaftar penerjemah dan mitra.</p>
   <?php if (!$rows): ?>
     <div class="bg-white rounded-3xl shadow-sm p-6 text-sm text-slate-500">Tidak ada pendaftaran menunggu persetujuan.</div>
   <?php endif; ?>
