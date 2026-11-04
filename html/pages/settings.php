@@ -8,6 +8,13 @@ $isPen = $u['role'] === 'penerjemah';
 if (!$isPen) {
     // Akun non-penerjemah (admin/mitra): nama, email, telepon, dan kata
     // sandi bisa diubah sendiri dari sini.
+    require_once __DIR__ . '/../includes/settings.php';
+    require_once __DIR__ . '/../includes/Notify.php';
+    $isAdminAcct = !empty($u['is_admin']) && $u['role'] === 'admin';
+    // POST gateway WA (tab Gateway WA) — khusus admin.
+    if ($isAdminAcct) {
+        wa_gateway_handle_post($u, '?page=settings&tab=gateway');
+    }
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['account_save'])) {
         csrf_check();
         $nm = trim($_POST['name'] ?? '');
@@ -23,7 +30,7 @@ if (!$isPen) {
                 ->execute([$nm, $em, $ph, (int)$u['id']]);
             flash('Data akun tersimpan.');
         }
-        redirect('?page=settings');
+        redirect('?page=settings&tab=profil');
     }
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['password_save'])) {
         csrf_check();
@@ -40,14 +47,26 @@ if (!$isPen) {
                 ->execute([password_hash($newPw, PASSWORD_DEFAULT), (int)$u['id']]);
             flash('Kata sandi berhasil diubah.');
         }
-        redirect('?page=settings');
+        redirect('?page=settings&tab=sandi');
     }
     $mq = db()->prepare('SELECT * FROM users WHERE id = ?');
     $mq->execute([(int)$u['id']]);
     $me = $mq->fetch();
+    if ($isAdminAcct) {
+        extract(wa_gateway_panel_data());
+    }
     ob_start(); ?>
-    <div class="max-w-md mx-auto">
-      <h1 class="text-2xl font-bold tracking-tight mb-5">Profil</h1>
+    <style>[x-cloak]{display:none!important}</style>
+    <div class="max-w-2xl mx-auto" x-data="adminSettingsTabs()">
+      <h1 class="text-2xl font-bold tracking-tight mb-5">Pengaturan</h1>
+      <div class="bg-slate-100 rounded-2xl p-1 flex gap-1 mb-5">
+        <button type="button" @click="setTab('profil')" :class="tabBtn('profil')" class="flex-1 h-10 rounded-xl text-sm font-semibold transition">Profil</button>
+        <button type="button" @click="setTab('sandi')" :class="tabBtn('sandi')" class="flex-1 h-10 rounded-xl text-sm font-semibold transition">Kata Sandi</button>
+        <?php if ($isAdminAcct): ?>
+        <button type="button" @click="setTab('gateway')" :class="tabBtn('gateway')" class="flex-1 h-10 rounded-xl text-sm font-semibold transition">Gateway WA</button>
+        <?php endif; ?>
+      </div>
+      <div x-show="tab === 'profil'" x-cloak>
       <div class="bg-white rounded-3xl shadow-sm p-6 mb-5">
         <div class="flex items-center gap-4 mb-6">
           <span class="w-16 h-16 rounded-3xl bg-indigo-100 text-indigo-700 grid place-items-center text-2xl font-bold"><?= e(mb_substr($me['name'], 0, 1)) ?></span>
@@ -68,6 +87,8 @@ if (!$isPen) {
           <button name="account_save" value="1" class="w-full h-11 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-500">Simpan data akun</button>
         </form>
       </div>
+      </div>
+      <div x-show="tab === 'sandi'" x-cloak>
       <div class="bg-white rounded-3xl shadow-sm p-6 mb-5">
         <h2 class="font-bold mb-4">Ganti kata sandi</h2>
         <form method="post" class="space-y-3">
@@ -81,16 +102,40 @@ if (!$isPen) {
           <button name="password_save" value="1" class="w-full h-11 rounded-xl bg-slate-800 text-white font-semibold hover:bg-slate-700">Ubah kata sandi</button>
         </form>
       </div>
-      <?php if (!empty($u['is_admin']) && $u['role'] === 'admin'): ?>
-      <a href="?page=gateway" class="w-full h-12 rounded-2xl bg-emerald-50 text-emerald-700 font-semibold flex items-center justify-center gap-2 hover:bg-emerald-100 mb-3">
-        <i class="fa-brands fa-whatsapp"></i>Pengaturan Gateway WhatsApp
-      </a>
+      </div>
+      <?php if ($isAdminAcct): ?>
+      <div x-show="tab === 'gateway'" x-cloak>
+        <?php require __DIR__ . '/_gateway_panel.php'; ?>
+      </div>
       <?php endif; ?>
-      <a href="?page=logout" class="w-full h-12 rounded-2xl bg-red-50 text-red-700 font-semibold flex items-center justify-center gap-2 hover:bg-red-100">
+      <a href="?page=logout" class="w-full h-12 rounded-2xl bg-red-50 text-red-700 font-semibold flex items-center justify-center gap-2 hover:bg-red-100 mt-5">
         <i class="fa-solid fa-right-from-bracket"></i>Keluar
       </a>
     </div>
-    <?php layout('Profil', ob_get_clean(), $u); return;
+    <script>
+    function adminSettingsTabs() {
+      return {
+        tab: 'profil',
+        init() {
+          var valid = ['profil', 'sandi'<?= $isAdminAcct ? ", 'gateway'" : '' ?>];
+          var h = (location.hash || '').replace('#', '');
+          var q = new URLSearchParams(location.search).get('tab') || '';
+          var saved = '';
+          try { saved = sessionStorage.getItem('blankoAdminSettingsTab') || ''; } catch (e) {}
+          this.tab = valid.indexOf(h) >= 0 ? h : (valid.indexOf(q) >= 0 ? q : (valid.indexOf(saved) >= 0 ? saved : 'profil'));
+        },
+        setTab(t) {
+          this.tab = t;
+          try { sessionStorage.setItem('blankoAdminSettingsTab', t); } catch (e) {}
+          if (history.replaceState) history.replaceState(null, '', '#' + t);
+        },
+        tabBtn(t) {
+          return this.tab === t ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700';
+        }
+      };
+    }
+    </script>
+    <?php layout('Pengaturan', ob_get_clean(), $u); return;
 }
 
 $st = db()->prepare('SELECT * FROM users WHERE id = ?');

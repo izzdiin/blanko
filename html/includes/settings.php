@@ -48,6 +48,85 @@ function wa_gateway_cfg(): array
     ];
 }
 
+// Tangani POST pengaturan gateway (simpan / kirim tes) — dipakai bersama
+// oleh halaman ?page=gateway dan tab Gateway WA di ?page=settings.
+// $backUrl = alamat kembali setelah POST.
+function wa_gateway_handle_post(array $u, string $backUrl): void
+{
+    if (($u['role'] ?? '') !== 'admin' || $_SERVER['REQUEST_METHOD'] !== 'POST') return;
+    if (!isset($_POST['save']) && !isset($_POST['test'])) return;
+    require_once __DIR__ . '/Notify.php';
+    csrf_check();
+    if (isset($_POST['save'])) {
+        $baseUrl = trim($_POST['wa_base_url'] ?? '');
+        $sendPath = trim($_POST['wa_send_path'] ?? '/send');
+        $deviceId = trim($_POST['wa_device_id'] ?? '');
+        $token = trim($_POST['wa_token'] ?? '');
+        $tpl = trim($_POST['wa_payload_template'] ?? '');
+        $err = null;
+        if ($baseUrl !== '' && !preg_match('#^https?://#i', $baseUrl)) {
+            $err = 'Base URL harus diawali http:// atau https://.';
+        } elseif ($sendPath === '' || $sendPath[0] !== '/') {
+            $err = 'Path kirim harus diawali garis miring, mis. /send.';
+        } elseif ($tpl !== '') {
+            $probe = strtr($tpl, ['{to}' => '62000', '{message}' => 'tes', '{device_id}' => 'dev']);
+            if (json_decode($probe) === null) {
+                $err = 'Templat payload harus menghasilkan JSON yang sah setelah placeholder diganti.';
+            }
+        }
+        if ($err !== null) {
+            flash($err, 'err');
+        } else {
+            app_setting_set('wa_enabled', isset($_POST['wa_enabled']) ? '1' : '0');
+            app_setting_set('wa_base_url', $baseUrl);
+            app_setting_set('wa_send_path', $sendPath);
+            app_setting_set('wa_device_id', $deviceId);
+            // Token: kosong = pertahankan yang lama, kecuali admin menandai hapus.
+            if (!empty($_POST['wa_token_clear'])) {
+                app_setting_set('wa_token', '');
+            } elseif ($token !== '') {
+                app_setting_set('wa_token', $token);
+            }
+            app_setting_set('wa_payload_template', $tpl);
+            flash('Pengaturan gateway WhatsApp tersimpan.');
+        }
+        redirect($backUrl);
+    }
+    // Kirim tes memakai pengaturan yang tersimpan.
+    $phone = preg_replace('/\D+/', '', $_POST['test_phone'] ?? '');
+    if ($phone === '') {
+        flash('Isi nomor tujuan tes dulu.', 'err');
+        redirect($backUrl);
+    }
+    $msg = '[Blanko] Pesan tes gateway WhatsApp — abaikan pesan ini.';
+    $r = wa_gateway_send($phone, $msg);
+    $cfgNow = wa_gateway_cfg();
+    $attempted = $cfgNow['enabled'] && $cfgNow['base_url'] !== '';
+    notify_log((int)$u['id'], 'wa', $phone, $msg, null, !$attempted ? 'logged' : ($r['ok'] ? 'sent' : 'failed'));
+    $_SESSION['wa_test_result'] = $r + ['attempted' => $attempted];
+    redirect($backUrl);
+}
+
+// Data untuk panel gateway (dipakai halaman gateway + tab settings).
+function wa_gateway_panel_data(): array
+{
+    $testResult = null;
+    if (!empty($_SESSION['wa_test_result'])) {
+        $testResult = $_SESSION['wa_test_result'];
+        unset($_SESSION['wa_test_result']);
+    }
+    $cfg = wa_gateway_cfg();
+    return [
+        'cfg' => $cfg,
+        'hasToken' => $cfg['token'] !== '',
+        'mode' => !$cfg['enabled'] ? 'Nonaktif' : ($cfg['base_url'] === '' ? 'Aktif, tapi Base URL kosong (mode log)' : 'Aktif'),
+        'lastWa' => db()->query(
+            "SELECT recipient, status, created_at FROM notifications WHERE channel='wa' ORDER BY id DESC LIMIT 5"
+        )->fetchAll(),
+        'testResult' => $testResult,
+    ];
+}
+
 // Kirim satu pesan WA lewat gateway yang diatur admin.
 // Mengembalikan ['ok'=>bool, 'http'=>int, 'response'=>string, 'error'=>string].
 function wa_gateway_send(string $phone, string $message): array
