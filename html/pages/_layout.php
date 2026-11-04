@@ -120,7 +120,7 @@ if ($u && (!empty($u['is_admin']) || $u['role'] === 'penerjemah')) {
     <?php elseif (!$isAdminOnly): ?>
     <a href="?page=catatan" class="side-link<?= $page==='catatan' ? ' active' : '' ?>"><i class="fa-solid fa-clipboard-list" style="width:20px;text-align:center"></i>Catatan Pencocokan</a>
     <?php endif; ?>
-    <a href="?page=settings" class="side-link<?= $page==='settings' ? ' active' : '' ?>"><i class="fa-solid fa-user" style="width:20px;text-align:center"></i>Profil</a>
+    <a href="?page=settings" class="side-link<?= $page==='settings' ? ' active' : '' ?>"><i class="fa-solid fa-gear" style="width:20px;text-align:center"></i>Pengaturan</a>
     <?php if (!empty($u['is_admin']) || $u['role'] === 'penerjemah'): ?>
     <a href="?page=approvals" class="side-link<?= $page==='approvals' ? ' active' : '' ?>"><i class="fa-solid fa-user-check" style="width:20px;text-align:center"></i>Persetujuan<?php if ($cntAppr > 0): ?><span class="min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] grid place-items-center" style="margin-left:auto"><?= $cntAppr ?></span><?php endif; ?></a>
     <?php endif; ?>
@@ -170,7 +170,7 @@ if ($u && (!empty($u['is_admin']) || $u['role'] === 'penerjemah')) {
     </a>
     <?php endif; ?>
     <a href="?page=settings" class="flex-1 py-2.5 flex flex-col items-center gap-1 text-xs <?= $page==='settings' ? 'tab-active' : 'text-slate-400' ?>">
-      <i class="fa-solid fa-user text-lg"></i>Profil<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
+      <i class="fa-solid fa-gear text-lg"></i>Pengaturan<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
     </a>
     <a href="?page=logout" class="flex-1 py-2.5 flex flex-col items-center gap-1 text-xs text-slate-400">
       <i class="fa-solid fa-right-from-bracket text-lg"></i>Keluar<span class="tab-dot w-1 h-1 rounded-full bg-indigo-600"></span>
