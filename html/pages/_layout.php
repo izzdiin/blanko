@@ -19,7 +19,7 @@ function layout(string $title, string $content, ?array $user = null): void {
 <link rel="apple-touch-icon" href="assets/icon-192.png">
 <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
 <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"></noscript>
-<link rel="stylesheet" href="assets/app.css?v=20261010b">
+<link rel="stylesheet" href="assets/app.css?v=20261104a">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.13.8/cdn.min.js"></script>
 <script defer src="assets/app.js?v=20261010c"></script>
 <style>
