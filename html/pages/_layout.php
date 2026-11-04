@@ -124,6 +124,9 @@ if ($u && (!empty($u['is_admin']) || $u['role'] === 'penerjemah')) {
     <?php if (!empty($u['is_admin']) || $u['role'] === 'penerjemah'): ?>
     <a href="?page=approvals" class="side-link<?= $page==='approvals' ? ' active' : '' ?>"><i class="fa-solid fa-user-check" style="width:20px;text-align:center"></i>Persetujuan<?php if ($cntAppr > 0): ?><span class="min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] grid place-items-center" style="margin-left:auto"><?= $cntAppr ?></span><?php endif; ?></a>
     <?php endif; ?>
+    <?php if ($isAdminOnly): ?>
+    <a href="?page=gateway" class="side-link<?= $page==='gateway' ? ' active' : '' ?>"><i class="fa-brands fa-whatsapp" style="width:20px;text-align:center"></i>Gateway WA</a>
+    <?php endif; ?>
   </nav>
   <div style="margin-top:auto;padding-top:1rem;border-top:1px solid #e2e8f0">
     <a href="?page=logout" class="side-link"><i class="fa-solid fa-right-from-bracket" style="width:20px;text-align:center"></i>Keluar</a>

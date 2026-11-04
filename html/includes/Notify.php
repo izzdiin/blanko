@@ -1,13 +1,16 @@
 <?php
-// Notifikasi WA / Email / Inbox. Pluggable: isi kredensial di config untuk kirim asli,
-// default mode log (tersimpan di DB + tampil di inbox).
+// Notifikasi WA / Email / Inbox.
+// WA: gateway diatur admin dari halaman ?page=gateway (tabel settings,
+// lihat includes/settings.php) — tidak di-hardcode. Bila gateway nonaktif
+// atau belum diatur, WA masuk mode log (tersimpan di DB + tampil di inbox).
+// Email: kredensial SMTP dari environment; kosong = mode log juga.
 declare(strict_types=1);
 
+require_once __DIR__ . '/settings.php';
+
 function notify_cfg(): array {
-    // TODO produksi: isi dari environment / config aman
+    // Konfigurasi email (SMTP). WA tidak lagi diatur di sini.
     return [
-        'wa_gateway_url' => getenv('BLANKO_WA_URL') ?: '',   // POST JSON {to, message}
-        'wa_token'       => getenv('BLANKO_WA_TOKEN') ?: '',
         'smtp_host'      => getenv('BLANKO_SMTP_HOST') ?: '',
         'smtp_port'      => (int)(getenv('BLANKO_SMTP_PORT') ?: 587),
         'smtp_user'      => getenv('BLANKO_SMTP_USER') ?: '',
@@ -28,25 +31,16 @@ function notify_inbox(int $userId, string $subject, string $body): void {
 }
 
 function notify_wa(?int $userId, string $phone, string $message): bool {
-    $cfg = notify_cfg();
-    $ok = false;
-    if ($cfg['wa_gateway_url'] !== '') {
-        $payload = json_encode(['to' => $phone, 'message' => $message]);
-        $ch = curl_init($cfg['wa_gateway_url']);
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => $payload,
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json']
-                + ($cfg['wa_token'] !== '' ? ['Authorization: Bearer ' . $cfg['wa_token']] : []),
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 15,
-        ]);
-        $res = curl_exec($ch);
-        $ok = $res !== false && curl_getinfo($ch, CURLINFO_HTTP_CODE) < 400;
-        curl_close($ch);
+    $cfg = wa_gateway_cfg();
+    if (!$cfg['enabled'] || $cfg['base_url'] === '') {
+        notify_log($userId, 'wa', $phone, $message, null, 'logged');
+        return false;
     }
-    notify_log($userId, 'wa', $phone, $message, null, $ok ? 'sent' : 'logged');
-    return $ok;
+    $r = wa_gateway_send($phone, $message);
+    // 'sent' bila gateway menerima; 'failed' bila dicoba tapi ditolak/gagal
+    // (dibedakan dari 'logged' = memang tidak dicoba).
+    notify_log($userId, 'wa', $phone, $message, null, $r['ok'] ? 'sent' : 'failed');
+    return $r['ok'];
 }
 
 function notify_email(?int $userId, string $to, string $subject, string $body): bool {

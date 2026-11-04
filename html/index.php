@@ -15,6 +15,7 @@ $routes = [
     'download'   => 'pages/download.php',
     'inbox'      => 'pages/inbox.php',
     'settings'   => 'pages/settings.php',
+    'gateway'    => 'pages/gateway.php',
     'rekap'      => 'pages/rekap.php',
     'rekap_export' => 'pages/rekap_export.php',
     'catatan'    => 'pages/catatan.php',

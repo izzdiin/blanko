@@ -76,11 +76,15 @@ Seed membuat akun demo **Mitra Demo** (`mitra@blanko.demo`) dan
 
 ### Konfigurasi notifikasi (opsional)
 
-Tanpa konfigurasi, notifikasi ditulis ke log saja. Untuk mengaktifkan:
+Tanpa konfigurasi, notifikasi ditulis ke log saja. WhatsApp diatur dari
+halaman admin **Gateway WA** (`?page=gateway`) - base URL, path kirim,
+device ID, token, dan templat payload tersimpan di tabel `settings`
+(migrasi 0003), tanpa hardcode. Env `BLANKO_WA_URL` /
+`BLANKO_WA_DEVICE_ID` / `BLANKO_WA_TOKEN` hanya menjadi nilai awal bila
+pengaturan belum pernah disimpan. Untuk email:
 
 | Variabel env | Isi |
 | --- | --- |
-| `BLANKO_WA_URL` | Endpoint gateway WhatsApp; menerima `POST` JSON `{to, message}` |
 | `BLANKO_WA_TOKEN` | Token Bearer gateway (bila ada) |
 | `BLANKO_SMTP_HOST` / `BLANKO_SMTP_PORT` | Server SMTP (bawaan port 587, STARTTLS) |
 | `BLANKO_SMTP_USER` / `BLANKO_SMTP_PASS` | Kredensial SMTP |
@@ -141,7 +145,7 @@ html/
 │   ├── esign.php        # token HMAC + jahitan integrasi PSrE (simulasi saat ini)
 │   ├── Notify.php       # WhatsApp/SMTP (mode log bila belum diatur)
 │   └── Rekap.php        # logika rekap tahunan + ekspor
-├── migrations/          # migrasi skema berversi: 0001_baseline.sql, 0002_profil_dan_rekap.sql, ...
+├── migrations/          # migrasi skema berversi: 0001_baseline.sql, 0002_profil_dan_rekap.sql, 0003_settings.sql, ...
 ├── cli/                 # remind_laporan.php, backfill_rekap.php, migrate_admin_role.php
 ├── assets/              # app.css (Tailwind terkompilasi), app.js, font
 └── vendor/              # mPDF (+ fpdf/fpdi) — ter-vendor di repo
@@ -241,9 +245,11 @@ Endpoint non-JSON yang berkaitan:
 | `?page=download`, `?page=file`, `?page=preview` | Login | Unduh/lihat berkas sesuai kepemilikan |
 | `?page=esign-asset`, `?page=font-asset` | Publik (aset) | Melayani aset tanda tangan dan font |
 
-Kontrak keluar (integrasi): gateway WhatsApp menerima `POST` JSON
-`{to, message}` dengan header `Authorization: Bearer <BLANKO_WA_TOKEN>` bila
-token diatur — lihat `html/includes/Notify.php`.
+Kontrak keluar (integrasi): gateway WhatsApp menerima `POST` JSON sesuai
+templat payload yang diatur admin (bawaan
+`{"device_id":"{device_id}","to":"{to}","message":"{message}"}`) dengan
+header `Authorization: Bearer <token>` bila token diatur — lihat
+`html/includes/settings.php` dan `html/includes/Notify.php`.
 
 ## Keamanan (ringkas)
 

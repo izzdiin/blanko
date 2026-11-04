@@ -81,6 +81,11 @@ if (!$isPen) {
           <button name="password_save" value="1" class="w-full h-11 rounded-xl bg-slate-800 text-white font-semibold hover:bg-slate-700">Ubah kata sandi</button>
         </form>
       </div>
+      <?php if (!empty($u['is_admin']) && $u['role'] === 'admin'): ?>
+      <a href="?page=gateway" class="w-full h-12 rounded-2xl bg-emerald-50 text-emerald-700 font-semibold flex items-center justify-center gap-2 hover:bg-emerald-100 mb-3">
+        <i class="fa-brands fa-whatsapp"></i>Pengaturan Gateway WhatsApp
+      </a>
+      <?php endif; ?>
       <a href="?page=logout" class="w-full h-12 rounded-2xl bg-red-50 text-red-700 font-semibold flex items-center justify-center gap-2 hover:bg-red-100">
         <i class="fa-solid fa-right-from-bracket"></i>Keluar
       </a>
