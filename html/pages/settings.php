@@ -212,7 +212,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 ob_start(); ?>
-<div class="max-w-2xl mx-auto">
+<div class="max-w-2xl mx-auto" x-data="settingsTabs()" x-init="init()">
+  <style>[x-cloak]{display:none!important}</style>
+  <div class="flex gap-1 bg-slate-200/60 rounded-2xl p-1 mb-5">
+    <button type="button" @click="setTab('profil')" :class="tabBtn('profil')" class="flex-1 h-11 rounded-xl font-semibold text-sm transition">Profil</button>
+    <button type="button" @click="setTab('sandi')" :class="tabBtn('sandi')" class="flex-1 h-11 rounded-xl font-semibold text-sm transition">Kata Sandi</button>
+    <button type="button" @click="setTab('lapor')" :class="tabBtn('lapor')" class="flex-1 h-11 rounded-xl font-semibold text-sm transition">Tahun Lapor</button>
+  </div>
+  <div x-show="tab === 'profil'" x-cloak>
   <h1 class="text-2xl font-bold tracking-tight mb-1">Profil Blanko Penerjemah</h1>
   <p class="text-sm text-slate-500 mb-5">Data ini tercetak di setiap blanko pengesahan.</p>
   <div class="bg-white rounded-3xl shadow-sm p-6">
@@ -334,7 +341,9 @@ ob_start(); ?>
 })();
 </script>
   </div>
-<div class="bg-white rounded-3xl shadow-sm p-6 mt-5">
+  </div>
+  <div x-show="tab === 'sandi'" x-cloak>
+<div class="bg-white rounded-3xl shadow-sm p-6">
   <h2 class="font-bold text-lg tracking-tight">Ganti Kata Sandi</h2>
   <p class="text-sm text-slate-500 mt-1">Gunakan kata sandi yang kuat dan jangan bagikan ke siapa pun.</p>
   <form method="post" class="space-y-4 mt-4">
@@ -356,7 +365,9 @@ $rkPrefill = rekap_default_period(rekap_parse_tanggal($p['sk_date'] ?? ''));
 $rkMulai = $p['rekap_periode_mulai'] ?? ($rkPrefill[0] ?? '');
 $rkSelesai = $p['rekap_periode_selesai'] ?? ($rkPrefill[1] ?? '');
 ?>
-<div class="bg-white rounded-3xl shadow-sm p-6 mt-5">
+  </div>
+  <div x-show="tab === 'lapor'" x-cloak>
+<div class="bg-white rounded-3xl shadow-sm p-6">
   <h2 class="font-bold text-lg tracking-tight">Tahun Lapor — Rekap Tahunan</h2>
   <p class="text-sm text-slate-500 mt-1">Periode laporan pelaksanaan jabatan tahunan Anda. Bila aktif, panel rekap menampilkan hitung mundur tenggat dan pengingat dikirim via WA dan email pada H-30 dan H-7. Tanggal usulan berasal dari tanggal SK pengangkatan dan dapat disesuaikan bebas.</p>
   <form method="post" action="?page=rekap" class="grid sm:grid-cols-3 gap-4 items-end mt-4">
@@ -374,7 +385,30 @@ $rkSelesai = $p['rekap_periode_selesai'] ?? ($rkPrefill[1] ?? '');
   </form>
   <a href="?page=rekap" class="inline-block text-sm text-indigo-600 font-medium mt-4">Buka panel Rekap Tahunan →</a>
 </div>
+  </div>
 </div>
+<script>
+function settingsTabs() {
+  return {
+    tab: 'profil',
+    init() {
+      var valid = ['profil', 'sandi', 'lapor'];
+      var h = (location.hash || '').replace('#', '');
+      var saved = '';
+      try { saved = sessionStorage.getItem('blankoSettingsTab') || ''; } catch (e) {}
+      this.tab = valid.indexOf(h) >= 0 ? h : (valid.indexOf(saved) >= 0 ? saved : 'profil');
+    },
+    setTab(t) {
+      this.tab = t;
+      try { sessionStorage.setItem('blankoSettingsTab', t); } catch (e) {}
+      if (history.replaceState) history.replaceState(null, '', '#' + t);
+    },
+    tabBtn(t) {
+      return this.tab === t ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700';
+    }
+  };
+}
+</script>
 <script>
 (function () {
   function bareLang(v) {
