@@ -1,5 +1,8 @@
 <?php
 // PDO SQLite singleton. Native PHP 8, prepared statements everywhere.
+// Skema dikelola migrasi berversi — lihat includes/migrate.php dan
+// folder migrations/. db() tidak lagi mengeksekusi schema.sql /
+// migrate_profile.sql (keduanya dibekukan sebagai migrations/0001-0002).
 declare(strict_types=1);
 
 function db(): PDO {
@@ -16,15 +19,8 @@ function db(): PDO {
         $pdo->exec("PRAGMA foreign_keys = ON");
         $pdo->exec("PRAGMA journal_mode = WAL");
         $pdo->exec("PRAGMA busy_timeout = 5000");
-        $schema = file_get_contents(__DIR__ . '/schema.sql');
-        $pdo->exec($schema);
-        // migrasi profil penerjemah (abaikan jika kolom sudah ada)
-        $mig = file_get_contents(__DIR__ . '/migrate_profile.sql');
-        foreach (explode(';', $mig) as $q) {
-            $q = trim($q);
-            if ($q === '') continue;
-            try { $pdo->exec($q); } catch (PDOException) {}
-        }
+        require_once __DIR__ . '/migrate.php';
+        blanko_migrate($pdo);
     }
     return $pdo;
 }

@@ -134,13 +134,14 @@ html/
 │   ├── _layout.php      # kerangka HTML bersama
 │   └── api_docs.php     # endpoint JSON daftar dokumen (lihat bagian API)
 ├── includes/
-│   ├── db.php           # PDO SQLite singleton; menjalankan schema.sql otomatis
+│   ├── db.php           # PDO SQLite singleton; menjalankan migrasi berversi (migrate.php)
 │   ├── bootstrap.php    # helper: e(), csrf, current_user, require_role, flash
 │   ├── Attestation.php  # pembubuhan strip/QR ke PDF + nomor register
 │   ├── Stamp.php / HtmlAttestation.php / ArabicShape.php
 │   ├── esign.php        # token HMAC + jahitan integrasi PSrE (simulasi saat ini)
 │   ├── Notify.php       # WhatsApp/SMTP (mode log bila belum diatur)
 │   └── Rekap.php        # logika rekap tahunan + ekspor
+├── migrations/          # migrasi skema berversi: 0001_baseline.sql, 0002_profil_dan_rekap.sql, ...
 ├── cli/                 # remind_laporan.php, backfill_rekap.php, migrate_admin_role.php
 ├── assets/              # app.css (Tailwind terkompilasi), app.js, font
 └── vendor/              # mPDF (+ fpdf/fpdi) — ter-vendor di repo
@@ -152,6 +153,13 @@ data/ (di luar repo, bind-mount)
 
 Tabel database: `users`, `documents`, `action_tokens`, `notifications`,
 `esign_records`, `work_entries`, `report_reminder_log`.
+
+**Migrasi skema:** versi tercatat di tabel `_migrations`. Perubahan skema
+selalu berupa file baru `migrations/NNNN_nama.sql` — file lama tidak pernah
+diedit. Migrasi berjalan sekali, dalam transaksi, saat koneksi pertama;
+kegagalan menghentikan aplikasi dengan error yang terlihat (tidak ditelan).
+Basis data lama dari era `schema.sql`/`migrate_profile.sql` diadopsi otomatis:
+versi 1–2 ditandai diterapkan tanpa mengeksekusi ulang isinya.
 
 Alur persetujuan dokumen: penerjemah membuka `review`, menempatkan QR di
 pratinjau, lalu `approve` — sistem menghitung halaman teks sumber dari berkas
