@@ -145,7 +145,7 @@ html/
 │   ├── esign.php        # token HMAC + jahitan integrasi PSrE (simulasi saat ini)
 │   ├── Notify.php       # WhatsApp/SMTP (mode log bila belum diatur)
 │   └── Rekap.php        # logika rekap tahunan + ekspor
-├── migrations/          # migrasi skema berversi: 0001_baseline.sql, 0002_profil_dan_rekap.sql, 0003_settings.sql, ...
+├── migrations/          # migrasi skema berversi: 0001_baseline.sql, 0002_profil_dan_rekap.sql, 0003_settings.sql, 0004_login_attempts.sql, ...
 ├── cli/                 # remind_laporan.php, backfill_rekap.php, migrate_admin_role.php
 ├── assets/              # app.css (Tailwind terkompilasi), app.js, font
 └── vendor/              # mPDF (+ fpdf/fpdi) — ter-vendor di repo
@@ -254,7 +254,9 @@ header `Authorization: Bearer <token>` bila token diatur — lihat
 ## Keamanan (ringkas)
 
 Prepared statement (PDO) di semua query, token CSRF di semua form POST,
-hash kata sandi `password_hash`, validasi unggahan, dan gerbang role +
+hash kata sandi `password_hash`, lockout login bertahap per email dan IP
+(migrasi 0004), validasi unggahan berlapis (MIME finfo + pemeriksaan isi +
+kesesuaian ekstensi, maks 10 MB, throttle 30/jam), dan gerbang role +
 kepemilikan di setiap rute berkas. `config.php` dan folder `data` tidak
 pernah masuk repo.
 

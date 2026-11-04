@@ -1,0 +1,6 @@
+# Batas upload selaras dengan batas aplikasi (pages/upload.php: maks
+# 10 MB). PHP di container berjalan sebagai mod_php (bukan FPM/CGI),
+# jadi pengaturan per-direktori harus lewat php_value di sini —
+# .user.ini tidak dibaca oleh SAPI apache2handler.
+php_value upload_max_filesize 10M
+php_value post_max_size 12M

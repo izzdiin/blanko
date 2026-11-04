@@ -1,24 +1,38 @@
 <?php
-// Login — modern mobile-first
+// Login — modern mobile-first.
+// Perlindungan brute-force: lockout bertahap per email + per IP,
+// lihat includes/ratelimit.php.
 declare(strict_types=1);
+require_once __DIR__ . '/../includes/ratelimit.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $email = trim($_POST['email'] ?? '');
     $pass = $_POST['password'] ?? '';
-    $st = db()->prepare('SELECT * FROM users WHERE email = ?');
-    $st->execute([$email]);
-    $u = $st->fetch();
-    if ($u && password_verify($pass, $u['password_hash'])) {
-        $st = $u['status'] ?? 'active';
-        if ($st === 'rejected') {
-            flash('Akun ditolak. Hubungi admin.', 'err');
-        } else {
-            session_regenerate_id(true);
-            $_SESSION['uid'] = $u['id'];
-            redirect($st === 'pending' ? '?page=pending' : '?page=dashboard');
-        }
+    $ip = rl_client_ip();
+    $locked = rl_login_locked_seconds($email, $ip);
+    if ($locked > 0) {
+        flash(sprintf(
+            'Terlalu banyak percobaan masuk yang gagal. Coba lagi dalam %d menit.',
+            (int)ceil($locked / 60)
+        ), 'err');
     } else {
-        flash('Email atau password salah.', 'err');
+        $st = db()->prepare('SELECT * FROM users WHERE email = ?');
+        $st->execute([$email]);
+        $u = $st->fetch();
+        if ($u && password_verify($pass, $u['password_hash'])) {
+            rl_login_clear_email($email);
+            $st = $u['status'] ?? 'active';
+            if ($st === 'rejected') {
+                flash('Akun ditolak. Hubungi admin.', 'err');
+            } else {
+                session_regenerate_id(true);
+                $_SESSION['uid'] = $u['id'];
+                redirect($st === 'pending' ? '?page=pending' : '?page=dashboard');
+            }
+        } else {
+            rl_login_record_failure($email, $ip);
+            flash('Email atau password salah.', 'err');
+        }
     }
 }
 ob_start(); ?>
