@@ -143,6 +143,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['esign_save'])) {
     redirect('?page=settings');
 }
 
+// Ganti kata sandi penerjemah — pola sama dengan akun non-penerjemah di atas.
+// Wajib sebelum handler profil umum di bawah agar POST sandi tidak tertelan.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['password_save'])) {
+    csrf_check();
+    $cur = (string)($_POST['password_current'] ?? '');
+    $newPw = (string)($_POST['password_new'] ?? '');
+    $cfm = (string)($_POST['password_confirm'] ?? '');
+    $hq = db()->prepare('SELECT password_hash FROM users WHERE id = ?');
+    $hq->execute([(int)$u['id']]);
+    if (!password_verify($cur, (string)$hq->fetchColumn())) { flash('Kata sandi saat ini salah.', 'err'); }
+    elseif (strlen($newPw) < 8) { flash('Kata sandi baru minimal 8 karakter.', 'err'); }
+    elseif ($newPw !== $cfm) { flash('Konfirmasi kata sandi baru tidak cocok.', 'err'); }
+    else {
+        db()->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+            ->execute([password_hash($newPw, PASSWORD_DEFAULT), (int)$u['id']]);
+        flash('Kata sandi berhasil diubah.');
+    }
+    redirect('?page=settings');
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $f = [
@@ -314,6 +334,22 @@ ob_start(); ?>
 })();
 </script>
   </div>
+<div class="bg-white rounded-3xl shadow-sm p-6 mt-5">
+  <h2 class="font-bold text-lg tracking-tight">Ganti Kata Sandi</h2>
+  <p class="text-sm text-slate-500 mt-1">Gunakan kata sandi yang kuat dan jangan bagikan ke siapa pun.</p>
+  <form method="post" class="space-y-4 mt-4">
+    <?= csrf_field() ?>
+    <div><label class="block text-sm font-medium mb-1.5">Kata sandi saat ini</label>
+      <input type="password" name="password_current" required class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none"></div>
+    <div><label class="block text-sm font-medium mb-1.5">Kata sandi baru (min. 8 karakter)</label>
+      <input type="password" name="password_new" required class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none"></div>
+    <div><label class="block text-sm font-medium mb-1.5">Konfirmasi kata sandi baru</label>
+      <input type="password" name="password_confirm" required class="w-full h-12 bg-slate-50 border-0 rounded-2xl px-4 text-[15px] focus:ring-2 focus:ring-indigo-500 outline-none"></div>
+    <button name="password_save" value="1" class="h-12 px-8 bg-slate-800 text-white rounded-2xl font-semibold hover:bg-slate-700 active:scale-[.98] transition">
+      <i class="fa-solid fa-key mr-2"></i>Ubah Kata Sandi
+    </button>
+  </form>
+</div>
 <?php
 $rkAktif = !empty($p['rekap_periode_aktif']);
 $rkPrefill = rekap_default_period(rekap_parse_tanggal($p['sk_date'] ?? ''));
